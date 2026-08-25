@@ -5,6 +5,11 @@ import re
 
 from buildlab import tuning
 
+# No import of `reference` here on purpose: constraint rule keys (attribute
+# and associated names alike) are already tuning identifiers straight out of
+# the tuning export, so there is no snake_case/tuning-identifier mapping to
+# bridge in this module.
+
 RULE_RE = re.compile(
     r"^AssociatedAttributeConstraints\[(\w+)\]\[HEIGHT_(\d+)\]\[(\d+)\]\.(\w+)$"
 )
