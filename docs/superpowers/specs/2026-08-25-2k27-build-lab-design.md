@@ -50,6 +50,12 @@ Two findings the tool must encode:
 - **Small Contact Dunks Off Two costs 86 Driving Dunk but caps at 6'4 max height**, below Pro Off Two at 87. On a build 6'4 or under, 86 is the real breakpoint and 87 buys nothing.
 - **Kyrie Irving dribble style requires 94 Speed With Ball**, the highest gate in the file.
 
+### Linked attribute constraints
+
+Inspecting the tuning export during planning surfaced a builder rule not described in the dataset README: `AssociatedAttributeConstraints[Attr][HEIGHT_nn][i]` supplies **1,545 pairs across all 21 attributes** binding each attribute's ceiling to another attribute's value. At height bucket 5, Agility names Speed with `MaxDelta 10` — Agility may not exceed Speed by more than 10. Observed deltas include 0, 5, 10, 15, 18, 20, 25, 30, 32 and 35; a delta of 0 is a hard lock to the associated attribute.
+
+This is load-bearing for the solver. Attributes cannot be raised independently, so a request to maximise one attribute may force spending on another, and some constraint sets that look feasible on ceilings alone are not. Upstream commit `957d009` was specifically "Fix MaxDelta 0 reading", so the zero case is a known parsing trap.
+
 ## 4. Architecture
 
 Two layers, deliberately separated:
@@ -81,6 +87,7 @@ Each module has one job, a clear interface, and can be tested alone.
 - **`body.py`** — legal height/weight/wingspan combinations per position; attribute ceilings via the dataset's verified formula `ceiling = clamp(round(25 + 74 * height_mult * weight_mult * wingspan_mult), 25, 99)`. Input: body. Output: legality plus per-attribute ceilings.
 - **`ovr.py`** — overall rating and attribute pricing from the tuning tables, including archetype selection. Input: attribute vector plus body. Output: OVR plus winning archetype.
 - **`badges.py`** — badge tier requirements as attribute predicates (AND/OR), token costs by badge × tier × height, token contributions by attribute × level × height, and the resulting token budget. Input: build. Output: unlocked tiers, tokens earned, tokens spent.
+- **`constraints.py`** — linked attribute constraints: the per-height `MaxDelta` rules binding one attribute's ceiling to another's value. Input: attribute, height, current values, body ceiling. Output: effective ceiling.
 - **`animations.py`** — animation gating by attribute and height range, joined to the ratings layer. Input: build. Output: available packages per family, ranked by rating where ratings exist.
 - **`build.py`** — the build object: body, 21 attributes, optional cap breakers. Supports **partial builds** where attributes are unspecified. `evaluate()` returns the full report.
 - **`solve.py`** — constraint solver. See section 6.
@@ -115,6 +122,8 @@ Constraints in, builds out. Supported constraint types, freely combined:
 - **Objective** — maximize an attribute, or minimize total cost
 
 Output is the cheapest build or builds satisfying every constraint. On failure it reports **which constraint pair is irreconcilable**, not just "no solution" — for example "Kyrie size-ups require ≤ 6'4, Elite Bigman Contacts require ≥ 6'10."
+
+The solver must respect the linked attribute constraints described in section 3. An attribute floor may force spending on a second attribute it is bound to, and that knock-on cost has to appear in the quoted price rather than surfacing later in the in-game builder.
 
 When ratings data exists, the solver prefers the cheapest animation meeting a quality bar over the highest-requirement one.
 
