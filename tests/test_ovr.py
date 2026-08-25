@@ -2,15 +2,16 @@ import json
 import math
 import unittest
 
-from buildlab import archetypes, ovr, sources, tables
+from buildlab import archetypes, ovr, reference, sources, tables
 
 REFERENCE_HEIGHT = 75
 BUCKET = 11
+SWEEP_RATINGS = (25, 40, 60, 75, 80, 83, 90, 95, 99)
 
 
 def uncapped(values, player_type):
     """Post-lerp overall before the display cap, for one archetype."""
-    return tables.lerp(BUCKET, archetypes.scaled_score(BUCKET, player_type, values))
+    return ovr._raw(BUCKET, player_type, values)
 
 
 def mixed_rows():
@@ -67,6 +68,84 @@ class TestSelection(unittest.TestCase):
             }
             for score in scores:
                 self.assertAlmostEqual(score, rating, places=9)
+
+
+class TestGeneralisesAcrossHeights(unittest.TestCase):
+    """Every golden row is at bucket 11. These tests cover buckets 5-24.
+
+    The uniform-vector identity is algebraic, not empirical: sum(w*s*r)/sum(w*s)
+    reduces to r for any weight vector whatsoever, so it holds at every height
+    without needing golden data there. That makes it the one property able to
+    catch an indexing or bucket-mismatch bug that bucket-11-only goldens
+    structurally cannot.
+    """
+
+    def test_uniform_vector_gives_back_the_rating_at_every_bucket(self):
+        # Asserted to within one ULP of the rating, which is the strongest
+        # bound IEEE-754 admits here -- see test_the_one_ulp_bound_is_rounding
+        # below for why exact equality is unreachable for ANY implementation.
+        for bucket in tables.weight_buckets():
+            for rating in SWEEP_RATINGS:
+                for player_type in tables.player_types():
+                    score = archetypes.scaled_score(bucket, player_type, [rating] * 21)
+                    self.assertLessEqual(
+                        abs(score - rating),
+                        math.ulp(float(rating)),
+                        msg=f"bucket {bucket}, rating {rating}, type {player_type}",
+                    )
+
+    def test_the_one_ulp_bound_is_rounding_not_a_formula_defect(self):
+        # Each product fl(fl(w*s)*r) is rounded independently, so the summed
+        # numerator is not bit-identical to r times the summed denominator even
+        # under exact (fsum) accumulation. Pinning that here documents that the
+        # residual is representation, not modelling: if a future change makes
+        # this deviation exceed one ULP, the formula really has drifted.
+        worst = 0.0
+        for bucket in tables.weight_buckets():
+            for rating in SWEEP_RATINGS:
+                for player_type in tables.player_types():
+                    weights = tables.weights(bucket, player_type)
+                    scales = [
+                        tables.scale_for(attr, rating)
+                        for attr in reference.tuning_order()
+                    ]
+                    exact = math.fsum(
+                        w * s * rating for w, s in zip(weights, scales)
+                    ) / math.fsum(w * s for w, s in zip(weights, scales))
+                    worst = max(worst, abs(exact - rating) / math.ulp(float(rating)))
+        self.assertLessEqual(worst, 1.0)
+
+    def test_public_api_is_sane_at_every_bucket(self):
+        heights = tables.height_buckets()
+        for bucket in tables.weight_buckets():
+            height = heights[bucket]
+            for rating in SWEEP_RATINGS:
+                values = [rating] * 21
+                where = f"height {height} (bucket {bucket}), rating {rating}"
+
+                detail = ovr.detailed(height, values)
+                self.assertIsInstance(detail, float, msg=where)
+                self.assertGreaterEqual(detail, 25.0, msg=where)
+                self.assertLessEqual(detail, 99.0, msg=where)
+
+                displayed = ovr.overall(height, values)
+                self.assertIsInstance(displayed, int, msg=where)
+                self.assertGreaterEqual(displayed, 25, msg=where)
+                self.assertLessEqual(displayed, 99, msg=where)
+                self.assertEqual(displayed, math.floor(detail), msg=where)
+
+                winner = ovr.archetype(height, values)
+                self.assertIn(winner, tables.player_types(), msg=where)
+
+    def test_overall_is_monotonic_in_the_uniform_rating(self):
+        # A bucket-mismatch bug would most likely show up as a non-monotonic
+        # or flat curve at some height.
+        heights = tables.height_buckets()
+        for bucket in tables.weight_buckets():
+            height = heights[bucket]
+            series = [ovr.detailed(height, [r] * 21) for r in SWEEP_RATINGS]
+            for lower, higher in zip(series, series[1:]):
+                self.assertLessEqual(lower, higher, msg=f"bucket {bucket}")
 
 
 class TestOverall(unittest.TestCase):

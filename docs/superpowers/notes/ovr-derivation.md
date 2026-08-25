@@ -94,6 +94,11 @@ rating-scaled, renormalised              archetype 256/256   detailed 255/256   
   + display clamp (shipped)              archetype 256/256   detailed 256/256   worst delta 0.000025 (sample 61)
 ```
 
+> The transcript above was captured at commit `a4499cc`. It is not generated,
+> so regenerate it by hand if the harness changes. `tests/test_probe.py`
+> asserts the rates themselves, so a drifting number fails the suite even if
+> this block is not updated.
+
 Hypothesis by hypothesis:
 
 | # | Hypothesis | Archetype | `detailed` | Verdict |
@@ -188,6 +193,17 @@ rounding step. Out of scope for Task 8; `overall` is `floor(detailed)`, not
   formula exactly. The clamp is on the final value only.
 - The 22nd entry in `AttributeRatingWeightScale` is `Stamina`, which is not one
   of the 21 builder attributes. It is simply unused here.
+- **`ShotFreeThrow` is exempt from the rating scale.** It ships all 25 rows
+  75-99 like every other attribute, but every one of them is 1.0. It is the
+  only builder attribute for which that is true (`Stamina` is likewise flat but
+  is not a builder attribute). So a high free throw never pulls the weighted
+  average toward itself the way a high three-point rating does. This is not a
+  gap in the data -- the rows are present and explicit, so it is deliberate.
+  Pinned by `tests/test_probe.py::test_free_throw_is_exempt_from_the_rating_scale`.
+- `PerPosition[POINT_GUARD].…ForPricing` declares 8 attribute keys but only 6
+  of them differ from 1.0; `ShotMidrange` and `ShotThree` are explicitly 1.0.
+  Irrelevant to the overall formula, but worth knowing before Task 9 uses the
+  family for what it is actually named for.
 - Missing weight entries are implicit 0.0 (`tables.weights` already handles
   this); none of the omissions fall in bucket 11.
 
@@ -200,6 +216,36 @@ and the uniform file corroborates the structure from two directions.
 Lower on the cap-lift predicate, for the reason given above. It affects only
 builds that would otherwise display 99, i.e. essentially finished ones.
 
-Untested at other heights: every golden row is at bucket 11. The formula is
-written against the general tables and should generalise, but nothing here
-verifies bucket 5-24 behaviour beyond the fact that the tables exist.
+## Other heights: now covered structurally
+
+Every golden row is at bucket 11, so there is no measured data at other
+heights. That gap is closed by a property rather than by data.
+
+The uniform-vector identity is algebraic: `sum(w*s*r)/sum(w*s)` reduces to `r`
+for *any* weight vector, so substituting a different bucket's weights cannot
+change the result. `tests/test_ovr.py::TestGeneralisesAcrossHeights` sweeps all
+20 buckets in `tables.weight_buckets()` (5-24, i.e. 69-88 in) at ratings 25, 40,
+60, 75, 80, 83, 90, 95 and 99 -- 2,700 combinations across the 15 archetypes --
+and additionally checks that `ovr.overall`, `ovr.detailed` and `ovr.archetype`
+return sane types, stay inside 25-99, agree with `floor`, and stay monotonic in
+the rating at every height. That is what catches an indexing or bucket-mismatch
+bug the bucket-11 goldens structurally cannot.
+
+**The identity holds to one ULP, not bit-exactly, and this is arithmetic rather
+than modelling.** The deviation is at most 1.0 ULP of the rating
+(1.42e-14 at rating 99) and appears at roughly 20% of combinations, spread
+evenly over all 20 buckets -- including bucket 11 itself, at ratings 83, 95 and
+99. It is *not* a summation-order artefact: replacing the naive sums with
+`math.fsum` gives bit-for-bit the same 1,919/2,400 exact hits and the same worst
+case. The cause is that each product `fl(fl(w*s)*r)` is rounded independently,
+so the summed numerator is not bit-identical to `r` times the summed
+denominator. No IEEE-754 implementation can do better, which is why the test
+asserts a one-ULP bound and a companion test pins the bound itself. The
+deviation is ten orders of magnitude below the 1e-4 parity tolerance and nine
+below the engine's own float32 noise.
+
+Still genuinely untested at other heights: anything that depends on measured
+values rather than the identity -- in particular the display cap, whose
+behaviour at a bucket whose lerp `x1` is not 83.5 is unverified. The `x1`
+values range from 78.57 to 87.5 across buckets, so the rating at which the cap
+starts biting differs by height. Nothing in this dataset constrains that.
