@@ -1162,8 +1162,16 @@ git add tools/probe.py buildlab/archetypes.py buildlab/ovr.py docs/superpowers/n
 
 ## Task 9: The 256/256 gate
 
+> **Superseded during execution — `tests/test_golden.py` was never created, deliberately.**
+>
+> Task 8 shipped `tests/test_ovr.py`, which already covered everything this task specified and more: all 256 mixed vectors on archetype, `detailed`, `uncapped` and displayed `overall`, plus the 75 uniform-rating rows. Writing a second file asserting the same things would have been duplication, not coverage.
+>
+> Task 9 was therefore re-scoped to the one vendored golden file nothing checked: `overall/official_ui_verified.json`, shipped as `tests/test_official_ui.py`. That file matters more than its two rows suggest — its own metadata calls it *"the only records in this dataset corroborated outside the engine"*, read from screenshots of the signed-in official builder UI rather than probed from the same native library that produced every other golden. It is the only independent check that the engine agrees with what a player actually sees.
+>
+> The gate itself was met: the engine reproduces all 256 vectors, the 75 uniform rows, and both official-UI rows. The specification below is retained as the original intent.
+
 **Files:**
-- Create: `tests/test_golden.py`
+- ~~Create: `tests/test_golden.py`~~ — superseded, see above. Equivalent coverage lives in `tests/test_ovr.py` and `tests/test_official_ui.py`.
 
 This is the gate the whole phase exists to pass. It must not be softened. If it fails, the engine is wrong.
 
