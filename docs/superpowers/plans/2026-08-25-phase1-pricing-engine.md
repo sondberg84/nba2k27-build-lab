@@ -1462,3 +1462,16 @@ git add buildlab/constraints.py tests/test_constraints.py && git commit -m "feat
 **Badges are deliberately deferred.** The design spec grouped badges into phase 1, but this plan splits them out: badge tier evaluation, token costs, token contributions and the token budget become **plan 1b**, executed straight after this one. The split is because Task 8 is open-ended reverse-engineering and bundling a second subsystem behind it would leave both unfinished for longer. Badges depend on nothing in this plan except `sources.py` and `reference.py`, so they can even proceed in parallel.
 
 Also out of scope: cap breakers, takeovers, animation parsing, threshold ladders, the solver, the critique flow, the refresh command, and the web UI. Those are plans 2 through 5. This plan ends when the pricing engine is proven correct, because nothing downstream can be trusted until it is.
+
+---
+
+## Carried review notes
+
+Raised by the Task 2 code quality review. None blocked that task; each is recorded here so the plan that first stresses the assumption can act on it.
+
+1. **Pin the full 40-character commit SHA, not the abbreviated `957d009`.** `raw.githubusercontent.com` resolves abbreviations today and collision risk is negligible at this repo's size, but a trust boundary whose purpose is supply-chain pinning should record the full SHA. Changing it touches `tools/vendor.py`, the generated `data/SOURCES.json`, and the `test_commit_is_pinned` assertion. Fold into the refresh command (plan 3), which rewrites the manifest anyway.
+2. **`verify()` raises on the first hash mismatch rather than collecting all of them.** Harmless while the only remedy is re-running `tools/vendor.py`, which re-downloads everything regardless. Revisit if files ever become hand-editable — `data/ratings.json` in plan 4 is the first case.
+3. **`lru_cache(maxsize=1)` on `sources.load()` is a staleness hazard in a long-running process.** Fine for short-lived CLI runs and tests. The web UI in plan 5 is the first resident process against this module; it must either invalidate the cache or re-read the manifest per request.
+4. **A corrupted `data/SOURCES.json` surfaces a raw `json.JSONDecodeError`** instead of a `SourceError` with the module's usual "run tools/vendor.py" guidance. Every other failure mode is wrapped consistently. Low probability — the file is machine-generated and committed — but worth aligning when the module is next touched.
+
+Also confirmed during review, worth keeping: `data/** -text` prevents CRLF corruption **without** costing the line-level `git diff` visibility that vendoring exists to provide. The attribute governs end-of-line normalisation only, not git's text/binary diff heuristic.
