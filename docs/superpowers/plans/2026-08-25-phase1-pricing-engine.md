@@ -569,7 +569,7 @@ Create `tests/test_tables.py`:
 ```python
 import unittest
 
-from buildlab import tables
+from buildlab import reference, tables
 
 
 class TestTables(unittest.TestCase):
@@ -586,13 +586,30 @@ class TestTables(unittest.TestCase):
     def test_fifteen_archetype_slots(self):
         self.assertEqual(len(tables.player_types()), 15)
 
+    def test_weight_buckets_match_the_legal_height_range(self):
+        # The weight table covers buckets 5-24 only, which is exactly 69-88
+        # inches — the union of every position's legal height range. Heights
+        # outside it have no weight data because no build can reach them.
+        self.assertEqual(tables.weight_buckets(), tuple(range(5, 25)))
+
     def test_weights_sum_to_one_hundred(self):
         # A percentage model: every (height, archetype) row sums to 100 within
         # rounding slack, because the shipped values are 2-decimal rounded.
-        for bucket in range(31):
+        for bucket in tables.weight_buckets():
             for player_type in tables.player_types():
                 total = sum(tables.weights(bucket, player_type))
                 self.assertAlmostEqual(total, 100.0, delta=0.15)
+
+    def test_missing_attribute_weight_reads_as_zero(self):
+        # 29 of the 300 (bucket, archetype) rows omit StandingDunk entirely,
+        # all at buckets 5-8 (69-72 in). Those rows already sum to ~100 without
+        # it, so an omitted entry is an implicit 0.0, not an error.
+        index = reference.tuning_order().index("StandingDunk")
+        self.assertEqual(tables.weights(5, 0)[index], 0.0)
+
+    def test_weights_rejects_a_bucket_with_no_data(self):
+        with self.assertRaises(KeyError):
+            tables.weights(0, 0)
 
     def test_weight_vector_is_attribute_ordered(self):
         vector = tables.weights(5, 0)
@@ -680,11 +697,36 @@ def player_types():
     return tuple(sorted({pt for _, pt, _ in _weight_index()}))
 
 
+@functools.lru_cache(maxsize=1)
+def weight_buckets():
+    """Height buckets the weight table covers: 5-24, i.e. 69-88 inches.
+
+    This is exactly the union of every position's legal height range. Heights
+    outside it carry no weight data because no build can reach them.
+    """
+    return tuple(sorted({bucket for bucket, _, _ in _weight_index()}))
+
+
 @functools.lru_cache(maxsize=None)
 def weights(bucket, player_type):
-    """21 weights in builder attribute-index order."""
+    """21 weights in builder attribute-index order.
+
+    An attribute absent from a row is an implicit 0.0, not an error: 29 of the
+    300 rows omit StandingDunk at buckets 5-8, and those rows already sum to
+    ~100 without it. A bucket with no data at all is an error, because it means
+    the caller asked about a height no build can have.
+    """
+    covered = weight_buckets()
+    if bucket not in covered:
+        raise KeyError(
+            f"no weight data for height bucket {bucket}; "
+            f"covered buckets are {covered[0]}-{covered[-1]}"
+        )
     index = _weight_index()
-    return tuple(index[(bucket, player_type, attr)] for attr in reference.tuning_order())
+    return tuple(
+        index.get((bucket, player_type, attr), 0.0)
+        for attr in reference.tuning_order()
+    )
 
 
 @functools.lru_cache(maxsize=1)
