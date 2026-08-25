@@ -1,0 +1,76 @@
+{
+  "sources": [
+    {
+      "name": "nba2k27-builder-dataset",
+      "url": "https://github.com/lightmatmul/nba2k27-builder-dataset",
+      "commit": "957d009",
+      "files": {
+        "reference/attributes.json": {
+          "local": "data/engine/reference__attributes.json",
+          "sha256": "0a90b934c0956615150c78c7ba15ee453eb725adcd831e0b3ed565a3cd359c0a",
+          "bytes": 2562
+        },
+        "reference/enums.json": {
+          "local": "data/engine/reference__enums.json",
+          "sha256": "4aa27bc9bbcec7f6d9e7ffd689f3637e794c9419986c3d2282c95356e48cb263",
+          "bytes": 4975
+        },
+        "bodies/legal_bodies.json": {
+          "local": "data/engine/bodies__legal_bodies.json",
+          "sha256": "b8d8d1dbf1f6c7abd1f981694ab0608fb73501584d240139e34b26cebbf315ca",
+          "bytes": 6850
+        },
+        "bodies/attribute_caps_sample.json": {
+          "local": "data/engine/bodies__attribute_caps_sample.json",
+          "sha256": "edc15d18ad2b0acf524f7ee1155811ea5fe75359324038502b70fd1ca467b830",
+          "bytes": 2148
+        },
+        "overall/mixed_vectors.json": {
+          "local": "data/engine/overall__mixed_vectors.json",
+          "sha256": "3ead3293dfcc19e3a0f838e04cb55a32b142b8eee8b5643eec46677c8e365305",
+          "bytes": 59369
+        },
+        "overall/uniform_ratings.json": {
+          "local": "data/engine/overall__uniform_ratings.json",
+          "sha256": "f435decff63253f73b5ef35177c808111be409f0cdd3b24a691962707c88d159",
+          "bytes": 10036
+        },
+        "overall/official_ui_verified.json": {
+          "local": "data/engine/overall__official_ui_verified.json",
+          "sha256": "5a2c3bd07ffe0e464a9cd8196aab66901b22419bb15ee648d4632ca706e4f43d",
+          "bytes": 1329
+        },
+        "badges/definitions.json": {
+          "local": "data/engine/badges__definitions.json",
+          "sha256": "abeeffc12ea011465e4c9b629f211c0cb1a289d428422a422f4798bb869aa8a6",
+          "bytes": 6632
+        },
+        "badges/tier_requirements.json": {
+          "local": "data/engine/badges__tier_requirements.json",
+          "sha256": "40705673b63b1b8d05f059dbb6ab9289f745b41112d829264c5e4e2957fb94f9",
+          "bytes": 42190
+        },
+        "badges/token_costs.json": {
+          "local": "data/engine/badges__token_costs.json",
+          "sha256": "06c61c00033708bb23215ecda20669bfe942a82db356f376c236ef07490f6054",
+          "bytes": 439487
+        },
+        "badges/token_contributions.json": {
+          "local": "data/engine/badges__token_contributions.json",
+          "sha256": "656183743955c73fc6ea9d7c7ad0c03882d2c2e3f6fb9b5a0f1bcbbd613eea0e",
+          "bytes": 3691890
+        },
+        "cap_breakers/gains_by_rating.json": {
+          "local": "data/engine/cap_breakers__gains_by_rating.json",
+          "sha256": "58fc7b95a71d82d7d35b8fe882b3f5fa0d4b6807b534642d114201b8ea3bc040",
+          "bytes": 1329016
+        },
+        "tuning/progression_attributes.txt": {
+          "local": "data/engine/tuning__progression_attributes.txt",
+          "sha256": "6e7a85f6ff60084a9d0a882faffad6f82a8f96a9452201e4f610089ed7e70509",
+          "bytes": 1336356
+        }
+      }
+    }
+  ]
+}
