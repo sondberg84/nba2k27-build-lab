@@ -165,10 +165,18 @@ def ceilings(height, weight, wingspan):
     for name, attr in zip(reference.attribute_names(), reference.tuning_order()):
         key = (bucket, attr)
         if key not in height_mult:
-            raise KeyError(
-                f"no height multiplier for height {height} (bucket {bucket}), "
-                f"attribute {attr}"
-            )
+            # HeightMultiplier omits StandingDunk at buckets 5-8 (69-72 in),
+            # the only gap in the whole table. This is the same pattern as
+            # HeightBasedAttributeWeight's omission of StandingDunk at those
+            # same four buckets (tables.weights), where the agreed reading is
+            # an implicit weight of 0.0: the attribute is not usable at these
+            # heights. There is no answer key for buckets 5-8 -
+            # attribute_caps_sample.json covers only bucket 11 - so 25 (the
+            # formula's own clamp floor) is a reasoned inference from that
+            # parallel omission, not a verified value. If a future probe
+            # captures caps at a short height, check this first.
+            result[name] = 25
+            continue
         h_mult = height_mult[key]
         w_mult = _interpolate(weight_rows, weight, attr)
         s_mult = _interpolate(wingspan_rows, wingspan, attr)
