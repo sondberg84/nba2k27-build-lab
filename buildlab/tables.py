@@ -55,11 +55,36 @@ def player_types():
     return tuple(sorted({pt for _, pt, _ in _weight_index()}))
 
 
+@functools.lru_cache(maxsize=1)
+def weight_buckets():
+    """Height buckets the weight table covers: 5-24, i.e. 69-88 inches.
+
+    This is exactly the union of every position's legal height range. Heights
+    outside it carry no weight data because no build can reach them.
+    """
+    return tuple(sorted({bucket for bucket, _, _ in _weight_index()}))
+
+
 @functools.lru_cache(maxsize=None)
 def weights(bucket, player_type):
-    """21 weights in builder attribute-index order."""
+    """21 weights in builder attribute-index order.
+
+    An attribute absent from a row is an implicit 0.0, not an error: 29 of the
+    300 rows omit StandingDunk at buckets 5-8, and those rows already sum to
+    ~100 without it. A bucket with no data at all is an error, because it means
+    the caller asked about a height no build can have.
+    """
+    covered = weight_buckets()
+    if bucket not in covered:
+        raise KeyError(
+            f"no weight data for height bucket {bucket}; "
+            f"covered buckets are {covered[0]}-{covered[-1]}"
+        )
     index = _weight_index()
-    return tuple(index[(bucket, player_type, attr)] for attr in reference.tuning_order())
+    return tuple(
+        index.get((bucket, player_type, attr), 0.0)
+        for attr in reference.tuning_order()
+    )
 
 
 @functools.lru_cache(maxsize=1)
