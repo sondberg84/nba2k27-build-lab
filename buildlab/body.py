@@ -74,11 +74,20 @@ def _range_index(height_re, value_re, mult_re):
             )
 
     by_height = {}
-    for row in rows.values():
+    for index, row in rows.items():
         height = row.get("height")
-        # Rows with height 0 are unused padding in the tuning export, not a
-        # real body; skip them so they never mask a real interpolation.
         if not height:
+            # Two padding shapes show up in practice: rows that declare
+            # HeightInInches 0, and rows that carry no HeightInInches key at
+            # all. Both are inert: every multiplier on them is zero. Assert
+            # that rather than assume it, so a future data refresh that
+            # introduces a real row with a missing height fails loudly
+            # instead of silently vanishing here.
+            if any(row.get("mult", {}).values()):
+                raise ValueError(
+                    f"skipping row {index} with no height but non-zero "
+                    "multipliers; the padding convention has changed"
+                )
             continue
         by_height.setdefault(height, []).append((row["value"], row["mult"]))
 
@@ -137,7 +146,12 @@ def is_legal(position, height, weight, wingspan):
 
 
 def ceilings(height, weight, wingspan):
-    """Attribute ceilings for this height/weight/wingspan, keyed by snake_case name."""
+    """Attribute ceilings for this height/weight/wingspan, keyed by snake_case name.
+
+    Assumes a legal body (see is_legal): the height must exist in the tuning
+    tables, or this raises KeyError. A weight or wingspan outside its row's
+    legal range is not rejected here — it is linearly extrapolated.
+    """
     bucket = tables.bucket_for_inches(height)
     height_mult = _height_multipliers()
     weight_rows = _weight_index().get(height)
@@ -149,7 +163,13 @@ def ceilings(height, weight, wingspan):
 
     result = {}
     for name, attr in zip(reference.attribute_names(), reference.tuning_order()):
-        h_mult = height_mult[(bucket, attr)]
+        key = (bucket, attr)
+        if key not in height_mult:
+            raise KeyError(
+                f"no height multiplier for height {height} (bucket {bucket}), "
+                f"attribute {attr}"
+            )
+        h_mult = height_mult[key]
         w_mult = _interpolate(weight_rows, weight, attr)
         s_mult = _interpolate(wingspan_rows, wingspan, attr)
         raw = 25 + 74 * h_mult * w_mult * s_mult

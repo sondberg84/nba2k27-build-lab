@@ -34,6 +34,10 @@ class TestBody(unittest.TestCase):
             with self.subTest(attribute=row["name"]):
                 self.assertEqual(got[row["name"]], row["cap"])
 
+    def test_ceilings_rejects_a_height_with_no_engine_data(self):
+        with self.assertRaises(KeyError):
+            body.ceilings(height=64, weight=180, wingspan=66)
+
 
 if __name__ == "__main__":
     unittest.main()
