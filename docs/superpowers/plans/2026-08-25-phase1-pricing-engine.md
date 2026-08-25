@@ -19,7 +19,8 @@
 - `HeightBasedOverallLerp[HEIGHT_11]` gives `Value[0] = [25, 83.5]` and `Value[1] = [25, 99]`, which reads as an input range mapped onto the displayed 25–99 range.
 - Naive `lerp(weighted_sum)` does **not** reproduce `detailed`. For golden row 0 the target is `64.688316`; plain weighted sum gives `54.8881` and rating-scaled gives `59.176948`. Working backwards, the correct pre-lerp value is approximately `56.3753`. The rating-weight scale is involved but not in the way first tried.
 - `AttributeRatingWeightScale[PLAYERDATA_ATTRIBUTE_XxxAbility][rating]` has exactly **25 entries per attribute, covering ratings 75–99**. Ratings below 75 have no entry.
-- `DataPerArchetype[NAME].MinMaxValuePerAttribute[Attr][0]` supplies **504 rows** of per-archetype attribute minimums. `StrengthsAndWeaknessesTieBreakerRank` supplies **106 rows**.
+- `DataPerArchetype[NAME].MinMaxValuePerAttribute[Attr][slot]` supplies **504 rows** = **12 archetypes** × 21 attributes × 2 slots. Note 12, not 15: the weight table's 15 `PLAYERTYPE` slots and these 12 named archetypes are different counts, and nothing in the data bridges the two namings. See Task 8 for what that rules out.
+- `StrengthsAndWeaknessesTieBreakerRank` supplies **106 rows**, keyed by **position**, not by archetype — as are `AttributeImportance`, `AttributeGradeMinValueRequired` and `PerPosition`. These drive the strengths-and-weaknesses UI, not pricing.
 
 **Upstream pin:** `lightmatmul/nba2k27-builder-dataset` at commit `957d009`. That repo made three corrections within a day of creation; the pin is not optional.
 
@@ -569,7 +570,7 @@ Create `tests/test_tables.py`:
 ```python
 import unittest
 
-from buildlab import tables
+from buildlab import reference, tables
 
 
 class TestTables(unittest.TestCase):
@@ -586,13 +587,30 @@ class TestTables(unittest.TestCase):
     def test_fifteen_archetype_slots(self):
         self.assertEqual(len(tables.player_types()), 15)
 
+    def test_weight_buckets_match_the_legal_height_range(self):
+        # The weight table covers buckets 5-24 only, which is exactly 69-88
+        # inches — the union of every position's legal height range. Heights
+        # outside it have no weight data because no build can reach them.
+        self.assertEqual(tables.weight_buckets(), tuple(range(5, 25)))
+
     def test_weights_sum_to_one_hundred(self):
         # A percentage model: every (height, archetype) row sums to 100 within
         # rounding slack, because the shipped values are 2-decimal rounded.
-        for bucket in range(31):
+        for bucket in tables.weight_buckets():
             for player_type in tables.player_types():
                 total = sum(tables.weights(bucket, player_type))
                 self.assertAlmostEqual(total, 100.0, delta=0.15)
+
+    def test_missing_attribute_weight_reads_as_zero(self):
+        # 29 of the 300 (bucket, archetype) rows omit StandingDunk entirely,
+        # all at buckets 5-8 (69-72 in). Those rows already sum to ~100 without
+        # it, so an omitted entry is an implicit 0.0, not an error.
+        index = reference.tuning_order().index("StandingDunk")
+        self.assertEqual(tables.weights(5, 0)[index], 0.0)
+
+    def test_weights_rejects_a_bucket_with_no_data(self):
+        with self.assertRaises(KeyError):
+            tables.weights(0, 0)
 
     def test_weight_vector_is_attribute_ordered(self):
         vector = tables.weights(5, 0)
@@ -680,11 +698,36 @@ def player_types():
     return tuple(sorted({pt for _, pt, _ in _weight_index()}))
 
 
+@functools.lru_cache(maxsize=1)
+def weight_buckets():
+    """Height buckets the weight table covers: 5-24, i.e. 69-88 inches.
+
+    This is exactly the union of every position's legal height range. Heights
+    outside it carry no weight data because no build can reach them.
+    """
+    return tuple(sorted({bucket for bucket, _, _ in _weight_index()}))
+
+
 @functools.lru_cache(maxsize=None)
 def weights(bucket, player_type):
-    """21 weights in builder attribute-index order."""
+    """21 weights in builder attribute-index order.
+
+    An attribute absent from a row is an implicit 0.0, not an error: 29 of the
+    300 rows omit StandingDunk at buckets 5-8, and those rows already sum to
+    ~100 without it. A bucket with no data at all is an error, because it means
+    the caller asked about a height no build can have.
+    """
+    covered = weight_buckets()
+    if bucket not in covered:
+        raise KeyError(
+            f"no weight data for height bucket {bucket}; "
+            f"covered buckets are {covered[0]}-{covered[-1]}"
+        )
     index = _weight_index()
-    return tuple(index[(bucket, player_type, attr)] for attr in reference.tuning_order())
+    return tuple(
+        index.get((bucket, player_type, attr), 0.0)
+        for attr in reference.tuning_order()
+    )
 
 
 @functools.lru_cache(maxsize=1)
@@ -768,29 +811,24 @@ PlayerRestrictions[NBA].WingspanMultiplier[0].Multiplier[Block]         0.88
 
 Height multipliers are indexed by height bucket and tuning attribute name. Weight and wingspan multipliers use a **flat row index** (84 rows each); each row carries its own `HeightInInches` plus the `Weight` or `WingspanInInches` it applies at, and then one `Multiplier[Attr]` per attribute. So the lookup is: find the row matching this height and this weight (or wingspan), then read that row's multiplier for the attribute.
 
-- [ ] **Step 1: Confirm the row structure**
+The multiplier row structure has also been confirmed. Weight and wingspan multipliers ship as **paired rows per height, giving the endpoints of a range**:
 
-Run:
-
-```bash
-python -c "from buildlab import tuning; t=tuning.load(); rows=sorted({int(k.split('[')[2].split(']')[0]) for k in t if k.startswith('PlayerRestrictions[NBA].WeightMultiplier')}); print('weight rows:', len(rows)); print([(t.get(f'PlayerRestrictions[NBA].WeightMultiplier[{i}].HeightInInches'), t.get(f'PlayerRestrictions[NBA].WeightMultiplier[{i}].Weight')) for i in rows[:8]])"
+```
+WeightMultiplier   46 rows:  row 0 height 69 Weight 145   row 1 height 69 Weight 185
+                             row 2 height 70 Weight 150   row 3 height 70 Weight 190
+WingspanMultiplier 42 rows:  row 0 height 69 Wingspan 69  row 1 height 69 Wingspan 75
+                             row 2 height 70 Wingspan 70  row 3 height 70 Wingspan 76
 ```
 
-Expected: `weight rows: 84` and a list of `(height, weight)` pairs. Note whether heights repeat with different weights — that tells you whether rows are (height × weight-bracket) pairs and how to select between them for a weight that falls between two brackets. If they bracket, interpolate linearly between the two nearest rows at that height; if they are exact, match exactly.
+Each height carries a low row and a high row, and those endpoints match the legal weight and wingspan bounds for that height in `bodies/legal_bodies.json`. So the multiplier for an actual weight or wingspan is a **linear interpolation between the two rows at that height**, per attribute. Height multipliers are a direct lookup, `HeightMultiplier[HEIGHT_nn][Attr]`, with no interpolation.
 
-- [ ] **Step 2: Inspect the measured ceilings**
+Note the row counts differ (46 vs 42) and neither is 2 × 31, so do not assume every height bucket appears. Build the index from what is actually present and key it by the `HeightInInches` value each row declares.
 
-Run:
+**The answer key.** `bodies/attribute_caps_sample.json` describes exactly one reference body — PG, 75 in, 198 lb, 78 in wingspan — with 21 rows shaped `{"attribute": 0, "name": "close_shot", "cap": 99}`. It is a single body, not a table of bodies.
 
-```bash
-python -c "import json; from buildlab import sources; d=json.loads(sources.path_for('bodies/attribute_caps_sample.json').read_text(encoding='utf-8')); print(json.dumps(d, indent=1)[:1500])"
-```
+- [ ] **Step 1: Write the failing test**
 
-This is the answer key for this task. Note the body it describes and the 21 ceilings.
-
-- [ ] **Step 3: Write the failing test**
-
-Create `tests/test_body.py`. Fill the body and expected ceilings from what Step 2 printed:
+Create `tests/test_body.py`:
 
 ```python
 import json
@@ -798,10 +836,13 @@ import unittest
 
 from buildlab import body, sources
 
+# The one body bodies/attribute_caps_sample.json was probed at.
+REFERENCE = {"height": 75, "weight": 198, "wingspan": 78}
+
 
 class TestBody(unittest.TestCase):
-    def test_default_pg_body_is_legal(self):
-        self.assertTrue(body.is_legal("PG", height=75, weight=198, wingspan=78))
+    def test_reference_body_is_legal(self):
+        self.assertTrue(body.is_legal("PG", **REFERENCE))
 
     def test_height_outside_position_range_is_illegal(self):
         self.assertFalse(body.is_legal("PG", height=84, weight=250, wingspan=88))
@@ -810,29 +851,26 @@ class TestBody(unittest.TestCase):
         self.assertTrue(body.is_legal("PG", height=75, weight=198, wingspan=81))
         self.assertFalse(body.is_legal("PG", height=75, weight=198, wingspan=82))
 
+    def test_weight_outside_the_row_bounds_is_illegal(self):
+        self.assertFalse(body.is_legal("PG", height=75, weight=120, wingspan=78))
+
     def test_ceilings_match_the_measured_sample(self):
-        sample = json.loads(
+        payload = json.loads(
             sources.path_for("bodies/attribute_caps_sample.json").read_text(
                 encoding="utf-8"
             )
         )
-        rows = sample["data"] if isinstance(sample, dict) else sample
+        rows = payload["data"]
+        self.assertEqual(len(rows), 21)
+        got = body.ceilings(**REFERENCE)
         for row in rows:
-            with self.subTest(row=row):
-                got = body.ceilings(
-                    height=row["height_inches"],
-                    weight=row["weight_lb"],
-                    wingspan=row["wingspan_inches"],
-                )
-                for name, expected in row["caps"].items():
-                    self.assertEqual(got[name], expected)
+            with self.subTest(attribute=row["name"]):
+                self.assertEqual(got[row["name"]], row["cap"])
 
 
 if __name__ == "__main__":
     unittest.main()
 ```
-
-If Step 2 showed different field names than `height_inches` / `weight_lb` / `wingspan_inches` / `caps`, use the real names. Do not invent a shape the file does not have.
 
 - [ ] **Step 4: Run test to verify it fails**
 
@@ -1068,21 +1106,39 @@ Expected: a line reading `archetype 207/256` and `detailed 0/256`. This confirms
 
 Add one hypothesis at a time to `tools/probe.py` as an additional `report(...)` call. After each, run `python tools/probe.py` and record the numbers in `docs/superpowers/notes/ovr-derivation.md`. Keep a change only if it raises a match rate; revert it otherwise.
 
-Test in this order — earlier items are cheaper and more likely:
+**Facts established during Task 7 — do not re-derive these, and do not build on the assumptions they replace:**
 
-1. **Archetype eligibility.** Restrict the argmax to archetypes whose `minimums()` vector is satisfied by the build (every attribute at or above its minimum). If nothing is eligible, fall back to unrestricted argmax. Target: archetype match above 207.
-2. **Partial eligibility.** If strict eligibility overshoots and drops the rate, try counting satisfied minimums and ranking by that first, weighted score second.
-3. **Tiebreaker.** Inspect `StrengthsAndWeaknessesTieBreakerRank` with
-   `python -c "from buildlab import tuning; t=tuning.load(); [print(k,'=',v) for k,v in t.items() if k.startswith('StrengthsAndWeaknesses')]"`.
-   Apply it to resolve archetypes within a small epsilon of the top score.
-4. **The value curve.** Once archetype selection is 256/256, fit `detailed`. The known target for sample 0 is a pre-lerp value of about `56.3753` where plain weighted sum gives `54.8881` and fully rating-scaled gives `59.176948`. Test, in order:
+- `DataPerArchetype` names **12** archetypes (504 rows = 12 × 21 × 2), while `HeightBasedAttributeWeight` carries **15** distinct `PLAYERTYPE` weight vectors, none duplicated at bucket 11.
+- `HeightBasedAttributeWeight` is the **only** key family in the entire tuning export that mentions `PLAYERTYPE`. Nothing maps an archetype name to a weight-vector index.
+- `StrengthsAndWeaknessesTieBreakerRank`, `AttributeImportance`, `AttributeGradeMinValueRequired`, `AttributeWeaknessPriority` and `PerPosition` are keyed by **position** (`CENTER`, `POINT_GUARD`), not by archetype. They drive the strengths-and-weaknesses UI, not archetype selection.
+- **Therefore the eligibility-by-minimums hypothesis is not executable.** `minimums()` is keyed by name and selection produces an index, and there is no bridge. Do not spend time trying to infer one from weight-vector similarity or alphabetical ordering — that is guessing, and a wrong mapping would produce a plausible-looking result that is silently wrong.
+
+Measured starting points, all reproduced independently:
+
+| Approach | Matches `player_type` |
+|---|---|
+| Plain weighted argmax | **207 / 256** |
+| Rating-scaled weighted argmax | 201 / 256 |
+
+Other measured facts about the goldens:
+
+- `player_type` and `best_player_type` agree on **all 256** rows, so `detailed` and `best` do not select differently and there is only one selection rule to find.
+- `detailed == best` on 255/256 and `detailed == uncapped` on 255/256, so exactly one row is affected by clamping. Fit `uncapped` if `detailed` resists; it removes that one variable.
+- Archetype index **1 never wins** any of the 256 vectors. The other 14 all do. That may mean slot 1 is unreachable, or simply that 256 samples missed it — do not assume either.
+
+**Work the ladder in this order.** After each hypothesis run `python tools/probe.py`, record the numbers in `docs/superpowers/notes/ovr-derivation.md`, and keep the change only if a match rate rises.
+
+1. **Fit the value curve first, not selection.** This is the reordering: the value curve can be fitted independently by scoring with the archetype the golden row *already declares*, sidestepping selection entirely. Score each row with `player_type` taken from the data, and search for the transform reproducing `detailed`. For sample 0 the target pre-lerp value is about `56.3753`, where plain weighted sum gives `54.8881` and fully rating-scaled gives `59.176948` — so the answer sits between them. Test in order:
    a. Scale applied and renormalised: `sum(w*v*s) / sum(w*s)`.
    b. Scale applied to the weight only, not the product: `sum(w*s*v) / 100`.
-   c. Scale applied only to attributes at or above the archetype's minimum.
-   d. Scale applied, then the lerp taken over the scaled input range rather than `[25, 83.5]`.
-5. **Clamping.** `mixed_vectors.json` carries `uncapped` alongside `detailed`. If `detailed` resists, fit `uncapped` first — it is the same number before the 99 display clamp and removes one variable.
+   c. Scale applied only above some rating floor other than the table's 75.
+   d. Scale applied, then the lerp taken over a scaled input range rather than `[25, 83.5]`.
+   e. `PerPosition[POINT_GUARD].MultiplierToRelativeAttributeImportanceForPricing[attr]` folded into the weights. This family is named "ForPricing" and was not accounted for anywhere in the original plan; the goldens are all at a PG reference body, so a position multiplier would apply uniformly and is invisible to inspection but not to a fit.
+   f. `AttributePriceCapOverMaxRatioToMultiplierLerp` (6 values) applied as a function of rating-over-ceiling ratio, using `body.ceilings` for the reference body.
+2. **Then selection.** A correct value curve makes selection tractable: if the engine picks the archetype maximising the *same* score it then reports, the winner falls out of the curve. Re-run argmax using the fitted curve rather than the raw weighted sum and measure. This is the most likely resolution of the 49 mismatches.
+3. **Only if that fails**, treat selection as a separate rule. Examine the 49 mismatching rows for structure: are they close calls where the top two raw scores are within a small epsilon, or are they far apart? Print the margin. Close calls point to a tiebreaker; wide misses point to a different scoring function entirely.
 
-Record every hypothesis and its measured result in the notes file, including the failures. A future data refresh may need this reasoning.
+Record every hypothesis and its measured result in the notes file, **including the failures**. A future data refresh may need this reasoning, and a failed hypothesis is evidence.
 
 - [ ] **Step 4: Promote the winning formula**
 
@@ -1106,8 +1162,16 @@ git add tools/probe.py buildlab/archetypes.py buildlab/ovr.py docs/superpowers/n
 
 ## Task 9: The 256/256 gate
 
+> **Superseded during execution — `tests/test_golden.py` was never created, deliberately.**
+>
+> Task 8 shipped `tests/test_ovr.py`, which already covered everything this task specified and more: all 256 mixed vectors on archetype, `detailed`, `uncapped` and displayed `overall`, plus the 75 uniform-rating rows. Writing a second file asserting the same things would have been duplication, not coverage.
+>
+> Task 9 was therefore re-scoped to the one vendored golden file nothing checked: `overall/official_ui_verified.json`, shipped as `tests/test_official_ui.py`. That file matters more than its two rows suggest — its own metadata calls it *"the only records in this dataset corroborated outside the engine"*, read from screenshots of the signed-in official builder UI rather than probed from the same native library that produced every other golden. It is the only independent check that the engine agrees with what a player actually sees.
+>
+> The gate itself was met: the engine reproduces all 256 vectors, the 75 uniform rows, and both official-UI rows. The specification below is retained as the original intent.
+
 **Files:**
-- Create: `tests/test_golden.py`
+- ~~Create: `tests/test_golden.py`~~ — superseded, see above. Equivalent coverage lives in `tests/test_ovr.py` and `tests/test_official_ui.py`.
 
 This is the gate the whole phase exists to pass. It must not be softened. If it fails, the engine is wrong.
 
