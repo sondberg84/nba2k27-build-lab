@@ -810,29 +810,24 @@ PlayerRestrictions[NBA].WingspanMultiplier[0].Multiplier[Block]         0.88
 
 Height multipliers are indexed by height bucket and tuning attribute name. Weight and wingspan multipliers use a **flat row index** (84 rows each); each row carries its own `HeightInInches` plus the `Weight` or `WingspanInInches` it applies at, and then one `Multiplier[Attr]` per attribute. So the lookup is: find the row matching this height and this weight (or wingspan), then read that row's multiplier for the attribute.
 
-- [ ] **Step 1: Confirm the row structure**
+The multiplier row structure has also been confirmed. Weight and wingspan multipliers ship as **paired rows per height, giving the endpoints of a range**:
 
-Run:
-
-```bash
-python -c "from buildlab import tuning; t=tuning.load(); rows=sorted({int(k.split('[')[2].split(']')[0]) for k in t if k.startswith('PlayerRestrictions[NBA].WeightMultiplier')}); print('weight rows:', len(rows)); print([(t.get(f'PlayerRestrictions[NBA].WeightMultiplier[{i}].HeightInInches'), t.get(f'PlayerRestrictions[NBA].WeightMultiplier[{i}].Weight')) for i in rows[:8]])"
+```
+WeightMultiplier   46 rows:  row 0 height 69 Weight 145   row 1 height 69 Weight 185
+                             row 2 height 70 Weight 150   row 3 height 70 Weight 190
+WingspanMultiplier 42 rows:  row 0 height 69 Wingspan 69  row 1 height 69 Wingspan 75
+                             row 2 height 70 Wingspan 70  row 3 height 70 Wingspan 76
 ```
 
-Expected: `weight rows: 84` and a list of `(height, weight)` pairs. Note whether heights repeat with different weights — that tells you whether rows are (height × weight-bracket) pairs and how to select between them for a weight that falls between two brackets. If they bracket, interpolate linearly between the two nearest rows at that height; if they are exact, match exactly.
+Each height carries a low row and a high row, and those endpoints match the legal weight and wingspan bounds for that height in `bodies/legal_bodies.json`. So the multiplier for an actual weight or wingspan is a **linear interpolation between the two rows at that height**, per attribute. Height multipliers are a direct lookup, `HeightMultiplier[HEIGHT_nn][Attr]`, with no interpolation.
 
-- [ ] **Step 2: Inspect the measured ceilings**
+Note the row counts differ (46 vs 42) and neither is 2 × 31, so do not assume every height bucket appears. Build the index from what is actually present and key it by the `HeightInInches` value each row declares.
 
-Run:
+**The answer key.** `bodies/attribute_caps_sample.json` describes exactly one reference body — PG, 75 in, 198 lb, 78 in wingspan — with 21 rows shaped `{"attribute": 0, "name": "close_shot", "cap": 99}`. It is a single body, not a table of bodies.
 
-```bash
-python -c "import json; from buildlab import sources; d=json.loads(sources.path_for('bodies/attribute_caps_sample.json').read_text(encoding='utf-8')); print(json.dumps(d, indent=1)[:1500])"
-```
+- [ ] **Step 1: Write the failing test**
 
-This is the answer key for this task. Note the body it describes and the 21 ceilings.
-
-- [ ] **Step 3: Write the failing test**
-
-Create `tests/test_body.py`. Fill the body and expected ceilings from what Step 2 printed:
+Create `tests/test_body.py`:
 
 ```python
 import json
@@ -840,10 +835,13 @@ import unittest
 
 from buildlab import body, sources
 
+# The one body bodies/attribute_caps_sample.json was probed at.
+REFERENCE = {"height": 75, "weight": 198, "wingspan": 78}
+
 
 class TestBody(unittest.TestCase):
-    def test_default_pg_body_is_legal(self):
-        self.assertTrue(body.is_legal("PG", height=75, weight=198, wingspan=78))
+    def test_reference_body_is_legal(self):
+        self.assertTrue(body.is_legal("PG", **REFERENCE))
 
     def test_height_outside_position_range_is_illegal(self):
         self.assertFalse(body.is_legal("PG", height=84, weight=250, wingspan=88))
@@ -852,29 +850,26 @@ class TestBody(unittest.TestCase):
         self.assertTrue(body.is_legal("PG", height=75, weight=198, wingspan=81))
         self.assertFalse(body.is_legal("PG", height=75, weight=198, wingspan=82))
 
+    def test_weight_outside_the_row_bounds_is_illegal(self):
+        self.assertFalse(body.is_legal("PG", height=75, weight=120, wingspan=78))
+
     def test_ceilings_match_the_measured_sample(self):
-        sample = json.loads(
+        payload = json.loads(
             sources.path_for("bodies/attribute_caps_sample.json").read_text(
                 encoding="utf-8"
             )
         )
-        rows = sample["data"] if isinstance(sample, dict) else sample
+        rows = payload["data"]
+        self.assertEqual(len(rows), 21)
+        got = body.ceilings(**REFERENCE)
         for row in rows:
-            with self.subTest(row=row):
-                got = body.ceilings(
-                    height=row["height_inches"],
-                    weight=row["weight_lb"],
-                    wingspan=row["wingspan_inches"],
-                )
-                for name, expected in row["caps"].items():
-                    self.assertEqual(got[name], expected)
+            with self.subTest(attribute=row["name"]):
+                self.assertEqual(got[row["name"]], row["cap"])
 
 
 if __name__ == "__main__":
     unittest.main()
 ```
-
-If Step 2 showed different field names than `height_inches` / `weight_lb` / `wingspan_inches` / `caps`, use the real names. Do not invent a shape the file does not have.
 
 - [ ] **Step 4: Run test to verify it fails**
 
