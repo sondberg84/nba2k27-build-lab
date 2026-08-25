@@ -147,19 +147,71 @@ The engine must be provably correct before it is trusted, because a silently wro
 
 Tests use `unittest` from the standard library.
 
-## 9. Build order
+## 9. Data refresh and update handling
 
-1. **Data plus core engine plus tests** — vendor the dataset, implement `body`, `ovr`, `badges`. Gate: all 256 golden vectors reproduce exactly.
+Upstream data will keep changing, and the changes are not additive. The dataset repo was created 2026-08-24 and within one day carried three corrections — `3084060` correcting `single_attribute` claims, `da328b2` retracting the slot-allocator documentation as not reproducing ground truth, and `957d009` fixing a MaxDelta reading and an archetype name. These are retractions of claims, not new rows. The game has not shipped yet, so this will continue.
+
+The risk is therefore not "the data is stale" but "a correction silently moves a threshold a build was planned around." The design treats refresh as a first-class feature, not maintenance.
+
+### Pin everything, adopt nothing automatically
+
+`data/SOURCES.json` records, for every source: URL, exact commit SHA, fetch date, and a SHA-256 for each file. The engine refuses to run against data not present in the manifest. No source changes without an explicit adopt step.
+
+### `2k refresh` is a three-step operation
+
+1. **`--check`** — queries GitHub for the upstream head, compares against the pin, reports how many commits behind along with their messages. Downloads nothing.
+2. **`--preview`** — downloads into a staging directory, leaving live data untouched, and produces a **semantic diff rather than a text diff**: `Ankle Assassin Gold: 93 -> 91`, `token cost badge 17 tier 3 @ 6'6: 4 -> 5`, `2 new badges`.
+3. **`--adopt`** — applies the staged data. Only reachable after a preview.
+
+### Distinguishing a real rules change from a broken capture
+
+The golden vectors ship inside the dataset, so tables and vectors version together. Running the new vectors against the new tables gives a three-way verdict:
+
+| New tables vs. new vectors | Values changed | Verdict |
+|---|---|---|
+| Reproduce exactly | yes | Real change — game patched or capture improved. Adopt, then show impact. |
+| Reproduce exactly | no | Cosmetic upstream change. Adopt quietly. |
+| Do not reproduce | — | Upstream capture is broken. Refuse to adopt, keep the existing pin, report why. |
+
+The third row is the safety property that matters most against a fast-moving upstream: a bad upstream commit is rejected before it can reach a build.
+
+### Impact report on saved builds
+
+After a real change, every saved build is re-evaluated under both old and new data and the difference reported in build terms, not data terms:
+
+```
+center build:  OVR 87 -> 86
+               LOST  Gold Rebound Chaser  (req 80 -> 82)
+               NEW   2 dead points at Ball Handle 86
+```
+
+### Snapshots and rollback
+
+Superseded data is retained under `data/snapshots/<sha>/`. Because the project lives in a private git repo, an adopt is a single commit and a revert is a single command, and any current state can be diffed against the original Community Day capture.
+
+### Locally authored sources
+
+The animation markdown and knowledge-base files are hashed in the same manifest and re-parsed and diffed by the same command when they change.
+
+`data/ratings.json` is never written by refresh — it is user-authored. Ratings key on animation name, so an upstream rename or removal is reported as a warning rather than silently discarding testing work.
+
+### What refresh will not do
+
+No background polling, no scheduled jobs, no network access unless a refresh subcommand is invoked.
+
+## 10. Build order
+
+1. **Data plus core engine plus tests** — vendor the dataset behind `data/SOURCES.json` with a pinned SHA and per-file hashes, implement `body`, `ovr`, `badges`. Gate: all 256 golden vectors reproduce exactly.
 2. **Animation parse** — markdown to structured JSON, spot-checked. Threshold ladders work.
-3. **CLI** — `eval`, `solve`, `ladder`, `critique`, `diff`. **At this point the tool is fully usable in conversation.**
+3. **CLI** — `eval`, `solve`, `ladder`, `critique`, `diff`, and `refresh` (section 9). **At this point the tool is fully usable in conversation.**
 4. **Ratings layer** — schema, editing workflow, solver integration, and the launch-day testing shortlist, in priority order: jumpshot, dribble style, layup style, contact dunks, signature dunk packages, signature size-up, behind-the-back, crossover/escape, pull-up and hop jumper, big post moves. Note that jumpshot heads this list as a *testing* priority while having no requirement data (section 3); rating it is possible in-game, gating on it is not until a requirement source exists.
 5. **Web UI** — local page with sliders and live readout over the proven engine.
 
 Phases 1–3 are the tool. Phases 4–5 are what make it better than anyone else's.
 
-## 10. Open items
+## 11. Open items
 
 - Jumpshot base and release requirements need a source. Until one exists the tool reports them as a known gap rather than omitting them.
 - The badge slot-allocator formula is unresolved upstream. The tool shows token costs and slot inputs but must not fabricate a slot count.
 - Takeover requirements are present but their attribute enum is unmapped. Surface as low confidence.
-- Dataset refresh procedure at 2K27 launch: re-pull, re-run golden vectors, diff against the pinned copy.
+- Upstream may retract further claims. Section 9 handles the mechanics; what remains open is whether any upstream correction ever proves the engine wrong rather than the data changed, which would mean revisiting the golden-vector strategy itself.
