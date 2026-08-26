@@ -7,6 +7,7 @@ from buildlab import (
     animations as animations_mod,
     badges as badges_mod,
     critique as critique_mod,
+    diff as diff_mod,
     goals as goals_mod,
     ladders,
     ovr,
@@ -454,6 +455,77 @@ def _serve(args):
     return 0
 
 
+def _diff(args):
+    try:
+        current = [int(v) for v in args.values.split(",")]
+        target = [int(v) for v in args.target.split(",")]
+    except ValueError:
+        print("error: --values and --target want comma-separated whole numbers")
+        return 2
+    if len(current) != 21 or len(target) != 21:
+        print(
+            f"error: expected 21 values each, got {len(current)} current "
+            f"and {len(target)} target"
+        )
+        return 2
+    height = parse_height(args.height)
+    report = diff_mod.compare(current, target, height)
+
+    print(f"HEIGHT     {args.height}  ({height} in)")
+    print(
+        f"TO GO      {report['points_remaining']} upgrades across "
+        f"{len(report['short'])} attributes"
+    )
+    print(
+        f"BADGES     {report['badges_current']} now, {report['badges_target']} "
+        f"at target"
+    )
+    print(
+        f"ANIMATIONS {report['animations_current']} now, "
+        f"{report['animations_target']} at target"
+    )
+    print()
+
+    if report["illegal"]:
+        print("ABOVE THE CEILING — your current build cannot exist:")
+        for e in report["illegal"]:
+            print(f"  {e['attribute']:<20} {e['value']} but the ceiling is {e['ceiling']}")
+        print()
+    if report["target_illegal"]:
+        print("TARGET IS IMPOSSIBLE at this height:")
+        for e in report["target_illegal"]:
+            print(f"  {e['attribute']:<20} {e['value']} but the ceiling is {e['ceiling']}")
+        print()
+
+    if report["short"]:
+        print("STILL NEEDED")
+        for e in report["short"]:
+            print(
+                f"  {e['attribute']:<20} {e['current']} -> {e['target']}"
+                f"   (+{e['gap']})"
+            )
+        print()
+    else:
+        print("STILL NEEDED  nothing, every attribute is at or above target")
+        print()
+
+    if report["surplus"]:
+        print(f"ABOVE TARGET  {report['points_surplus']} points")
+        for e in report["surplus"]:
+            print(
+                f"  {e['attribute']:<20} {e['current']} vs {e['target']}"
+                f"   ({e['over']} over)"
+            )
+        print()
+
+    if report["badges_missing"]:
+        print(f"BADGES NOT YET REACHED  {len(report['badges_missing'])}")
+        for e in report["badges_missing"]:
+            have = e["have"] or "none"
+            print(f"  {e['badge']:<28} target {e['tier']}, currently {have}")
+    return 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="buildlab")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -514,6 +586,12 @@ def main(argv=None):
         "--no-browser", action="store_true", help="do not open a browser"
     )
     sr.set_defaults(func=_serve)
+
+    df = sub.add_parser("diff", help="compare a build in progress against a target")
+    df.add_argument("--height", required=True, help="feet-inches, e.g. 6-10")
+    df.add_argument("--values", required=True, help="21 comma-separated ratings, current")
+    df.add_argument("--target", required=True, help="21 comma-separated ratings, target")
+    df.set_defaults(func=_diff)
 
     args = parser.parse_args(argv)
     return args.func(args)
