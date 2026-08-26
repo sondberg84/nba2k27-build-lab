@@ -707,7 +707,7 @@ def reachable_range(name, family):
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `python -m unittest tests.test_animations -v`
-Expected: `OK`, 24 tests. `_max_ceiling_at` scans every legal weight and wingspan, so the first call at each height is slow; the cache makes the rest fast.
+Expected: `OK`, 24 tests. `max_ceiling_at` scans every legal weight and wingspan, so the first call at each height is slow; the cache makes the rest fast.
 
 If `test_kyrie_dribble_style_is_unreachable_above_six_two` fails, print the actual ceilings with
 `python -c "from buildlab import animations; print([(h, animations.max_ceiling_at(h, 'speed_with_ball')) for h in range(69, 78)])"`
