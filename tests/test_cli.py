@@ -131,5 +131,57 @@ class TestAnimationsCommand(unittest.TestCase):
         self.assertEqual(code, 2)
 
 
+class TestSolveCommand(unittest.TestCase):
+    def run_cli(self, argv):
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            code = cli.main(argv)
+        return code, buffer.getvalue()
+
+    def test_solve_with_an_attribute_goal(self):
+        code, out = self.run_cli(["solve", "--attribute", "three_point=90"])
+        self.assertEqual(code, 0)
+        self.assertIn("FEASIBLE", out)
+        self.assertIn("three_point", out)
+
+    def test_solve_with_a_badge_goal(self):
+        code, out = self.run_cli(["solve", "--badge", "float_game=gold"])
+        self.assertEqual(code, 0)
+        self.assertIn("FEASIBLE", out)
+
+    def test_solve_with_an_animation_goal(self):
+        code, out = self.run_cli(
+            ["solve", "--animation", "Dribble Style:Kyrie Irving"]
+        )
+        self.assertEqual(code, 0)
+        self.assertIn("6-2", out)
+
+    def test_solve_reports_infeasibility(self):
+        code, out = self.run_cli(
+            [
+                "solve",
+                "--animation", "Dribble Style:Kyrie Irving",
+                "--badge", "paint_patroller=gold",
+            ]
+        )
+        self.assertEqual(code, 0)
+        self.assertIn("NOT FEASIBLE", out)
+
+    def test_solve_rejects_a_malformed_goal(self):
+        code, out = self.run_cli(["solve", "--attribute", "three_point"])
+        self.assertEqual(code, 2)
+
+    def test_solve_requires_at_least_one_goal(self):
+        code, out = self.run_cli(["solve"])
+        self.assertEqual(code, 2)
+
+    def test_solve_accepts_a_fixed_height(self):
+        code, out = self.run_cli(
+            ["solve", "--attribute", "three_point=90", "--height", "6-3"]
+        )
+        self.assertEqual(code, 0)
+        self.assertIn("6-3", out)
+
+
 if __name__ == "__main__":
     unittest.main()

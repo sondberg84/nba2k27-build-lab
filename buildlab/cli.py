@@ -5,9 +5,11 @@ import argparse
 from buildlab import (
     animations as animations_mod,
     badges as badges_mod,
+    goals as goals_mod,
     ladders,
     ovr,
     reference,
+    solver,
     tokens,
 )
 
@@ -168,6 +170,72 @@ def _reachability(args):
     return 0
 
 
+def _parse_goals(args):
+    """Turn --attribute/--badge/--animation strings into Goal objects."""
+    built = []
+    for spec in args.attribute or []:
+        name, sep, minimum = spec.partition("=")
+        if not sep or not minimum.strip().isdigit():
+            raise ValueError(f"--attribute wants name=value, got {spec!r}")
+        built.append(goals_mod.AttributeGoal(name.strip(), int(minimum)))
+    for spec in args.badge or []:
+        name, sep, tier = spec.partition("=")
+        if not sep:
+            raise ValueError(f"--badge wants name=tier, got {spec!r}")
+        built.append(goals_mod.BadgeGoal(name.strip(), tier.strip()))
+    for spec in args.animation or []:
+        family, sep, name = spec.partition(":")
+        if not sep:
+            raise ValueError(f"--animation wants Family:Name, got {spec!r}")
+        built.append(goals_mod.AnimationGoal(name.strip(), family.strip()))
+    return built
+
+
+def _solve(args):
+    try:
+        goal_list = _parse_goals(args)
+    except ValueError as error:
+        print(f"error: {error}")
+        return 2
+    if not goal_list:
+        print("error: give at least one --attribute, --badge or --animation goal")
+        return 2
+
+    heights = None
+    if args.height is not None:
+        heights = [parse_height(args.height)]
+
+    try:
+        result = solver.solve(goal_list, heights=heights)
+    except (KeyError, ValueError) as error:
+        print(f"error: {error}")
+        return 2
+
+    print("GOALS")
+    for goal in goal_list:
+        print(f"  {goal.describe()}")
+    print()
+
+    if not result["feasible"]:
+        print("NOT FEASIBLE")
+        print(f"  {result['reason']}")
+        return 0
+
+    best = result["best"]
+    low, high = result["heights"][0], result["heights"][-1]
+    print(f"FEASIBLE   {_ft(low)} to {_ft(high)}")
+    print(
+        f"CHEAPEST   {_ft(best['height_inches'])}   "
+        f"{best['points']} upgrade points   overall {best['overall']}"
+    )
+    print()
+    for name in reference.attribute_names():
+        value = best["build"][name]
+        if value > ladders.ATTRIBUTE_FLOOR:
+            print(f"  {name:<20} {value}")
+    return 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="buildlab")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -197,6 +265,13 @@ def main(argv=None):
     )
     rc.add_argument("--family", default=None, help="restrict to one family")
     rc.set_defaults(func=_reachability)
+
+    sv = sub.add_parser("solve", help="find the cheapest build meeting goals")
+    sv.add_argument("--attribute", action="append", help="name=value, repeatable")
+    sv.add_argument("--badge", action="append", help="name=tier, repeatable")
+    sv.add_argument("--animation", action="append", help="Family:Name, repeatable")
+    sv.add_argument("--height", default=None, help="fix the height, e.g. 6-3")
+    sv.set_defaults(func=_solve)
 
     args = parser.parse_args(argv)
     return args.func(args)
