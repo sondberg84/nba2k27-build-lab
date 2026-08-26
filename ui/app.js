@@ -13,6 +13,21 @@ async function post(path, body) {
   return response.json();
 }
 
+// A build is fully described by its height and 21 values, so it fits in a URL
+// hash. That makes a build shareable and reloadable without any storage.
+function writeHash() {
+  const hash = `#h=${state.height}&v=${state.values.join(",")}`;
+  history.replaceState(null, "", hash);
+}
+
+function readHash() {
+  const params = new URLSearchParams(location.hash.slice(1));
+  const height = Number(params.get("h"));
+  const values = (params.get("v") || "").split(",").filter(Boolean).map(Number);
+  if (!height || values.length !== 21 || values.some(Number.isNaN)) return null;
+  return { height, values };
+}
+
 function buildSliders() {
   const host = $("sliders");
   host.innerHTML = "";
@@ -33,6 +48,7 @@ function buildSliders() {
     slider.oninput = () => {
       state.values[index] = Number(slider.value);
       row.querySelector(".num").textContent = slider.value;
+      writeHash();
       refreshEvaluate();
     };
 
@@ -125,6 +141,12 @@ async function refreshLadder() {
 async function start() {
   state.meta = await (await fetch("/api/meta")).json();
   state.values = new Array(state.meta.attributes.length).fill(state.meta.floor);
+
+  const shared = readHash();
+  if (shared) {
+    state.height = shared.height;
+    state.values = shared.values;
+  }
   $("commit").textContent = state.meta.commit.slice(0, 12);
 
   const height = $("height");
@@ -135,11 +157,13 @@ async function start() {
   height.oninput = () => {
     state.height = Number(height.value);
     $("heightOut").textContent = ft(state.height);
+    writeHash();
     refreshEvaluate();
     refreshLadder();
   };
 
   buildSliders();
+  writeHash();
   await refreshEvaluate();
   await refreshLadder();
 }
