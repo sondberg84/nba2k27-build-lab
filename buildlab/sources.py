@@ -34,6 +34,16 @@ def path_for(rel):
     return path
 
 
+def rows_for(rel):
+    """Load a vendored JSON file and return its data rows.
+
+    Vendored files come in two shapes: a bare list, or an object with `_meta`
+    and `data` keys. Both normalise to a list of rows.
+    """
+    payload = json.loads(path_for(rel).read_text(encoding="utf-8"))
+    return payload["data"] if isinstance(payload, dict) else payload
+
+
 def verify():
     """Raise SourceError if any vendored file differs from its recorded hash."""
     for source in load()["sources"]:

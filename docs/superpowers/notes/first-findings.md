@@ -108,3 +108,134 @@ and carries no weight in the overall rating. Its ceiling is the floor value, 25.
   6'3".
 - The standing-dunk floor of 25 at 5'9"–6'0" is a reasoned inference, not a measured value.
   No answer key covers those heights.
+
+---
+
+# Phase 1b findings — badges, tokens and cap breakers
+
+Same rule as above: every number is computed from the committed code, not quoted.
+
+## 6. Two independent datasets agree
+
+This phase gave the first chance to check the engine's badge data against the
+NBA2KLab-derived tables in `2k27-build-knowledge-base.md`. Badge height ranges, nine
+spot-checks, all exact:
+
+```
+mini_marksman      5'9-6'4     ankle_assassin   5'9-6'10    handles_for_days  5'9-7'0
+paint_prodigy      6'3-7'4     lightning_launch 5'9-6'11    strong_handle     5'9-6'11
+arc_cadence        5'9-6'11    pace             5'9-6'10    layup_mixmaster   5'9-7'0
+```
+
+One source is 2K's own rules engine, the other is NBA2KLab's testing. Landing on
+identical numbers is strong mutual validation.
+
+It also decoded a notation. **Unpluckable at hall-of-fame** reads `— / 97` in the
+NBA2KLab table and `post_control 100 OR ball_handle 97` in the engine. The dash is the
+engine's unreachable 100: no attribute can exceed 99, so that branch is dead and
+Unpluckable HOF is **ball-handle-only**. A solver chasing the post-control side would be
+chasing something that cannot exist.
+
+## 7. 6'8" is a badge-token price breakpoint
+
+Bronze cost varies with height for 11 of 53 badges, and almost all of them change at
+exactly the same place:
+
+```
+big-man badges get MORE expensive at 6'8"+
+  rise_up 1->3, brick_wall 1->3, paint_prodigy 1->3 (again at 6'10"),
+  post_lockdown 1->2, post_powerhouse 1->2, high_flying_denier 1->2, pogostick 1->2
+
+guard badges get CHEAPER at 6'8"+
+  slippery_offball 2->1
+```
+
+Silver is a flat 2 tokens everywhere. Gold and hall-of-fame are a flat 1 everywhere. So
+**bronze is the only tier whose price moves at all**, and 6'8" is where it moves.
+
+A big built at 6'7" pays meaningfully less per badge than the same build at 6'10". That
+trade-off is not documented anywhere.
+
+## 8. Free throw is doubly inert
+
+Phase 1 found free throw is the only attribute exempt from the overall-rating scale — its
+multiplier stays 1.0 at every rating while three-point climbs to 3.75.
+
+This phase found the other half: **free throw earns zero badge tokens at every rating and
+every height.** It is the only attribute that earns nothing.
+
+So free throw neither raises your overall nor buys you badges. Whatever it is for, it is
+not those two things.
+
+## 9. The token economy only makes sense one way
+
+A maxed build earns 121 tokens at 6'3" (125 at 6'9", the ceiling of trustworthy data).
+Every build gets 20 badge slots, per the upstream README.
+
+The shipped cost data cannot settle whether a tier's price is absolute or incremental, so
+the engine supports both and defaults to the literal reading the field description implies.
+But the arithmetic argues:
+
+```
+47 eligible badges at hall-of-fame, literal      47 tokens   (121 earned - trivial)
+47 eligible badges at hall-of-fame, cumulative  287 tokens   (impossible)
+20 slots filled at hall-of-fame, cumulative     ~108 tokens  (121 earned - tight)
+```
+
+Under the literal reading tokens are nearly free and the system is pointless. Under the
+cumulative reading, filling your 20 slots at max tier costs about 108 against 121 earned —
+a real budget where choices bite. **Cumulative is almost certainly the true reading.**
+
+That is an inference from game design, not from evidence, so the default stays faithful to
+the data. One recorded token balance for a known loadout would settle it permanently.
+
+## 10. Cap breakers do not model breaking a cap
+
+Despite the name, the shipped data describes gains that **taper to exactly zero at the
+ceiling**:
+
+```
+close_shot at 89 (below cap)   gains 2, 2, 2, 1, 1  ->  reaches 95
+close_shot at 99 (at cap)      gains 0, 0, 0, 0, 0  ->  stays 99
+```
+
+The table was probed at one body and stops at that body's ceiling for each attribute. So it
+answers "how fast does an attribute climb toward its cap", not "can a cap breaker exceed
+the cap". The latter is **unanswerable from this data**.
+
+Also measured: the `near_caps` scenario gives strictly more than `isolated`, sometimes far
+more — speed_with_ball from 25 gains 5 under `isolated` and 25 under `near_caps`. What
+distinguishes the two scenarios is not documented upstream and is an open question.
+
+The largest single cap-breaker gain anywhere in the table is **+15**, on standing dunk at
+rating 25.
+
+## 11. A data defect that would have produced catastrophic advice
+
+**Every token value is zero for heights 82-88 (6'10" and up)**, while the `slots` field in
+those same rows stays populated. Counting rows with any nonzero token value:
+
+```
+69-81   689, 690, 694, 695, 706, 719, 731, 732, 741, 747, 746, 746, 746
+82-88   0, 0, 0, 0, 0, 0, 0
+```
+
+A smooth climb that falls to exactly zero between 6'9" and 6'10", with a sibling field in
+the same rows unaffected, is the signature of a capture that stopped recording — not a game
+rule. Taken at face value it would tell **every centre they earn no badge tokens at all**.
+
+Upstream commit `957d009` is still their latest and the README does not mention it. The
+engine therefore treats 82+ as **missing**, raising rather than returning zero, and the CLI
+degrades gracefully and explains why. A test pins the defect so that a future data refresh
+which fixes it fails loudly and tells us to widen the trusted range.
+
+**This is the first thing worth re-capturing at launch**, and worth reporting upstream.
+
+## Caveats carried forward
+
+- All Community Day data, captured 2026-08-22, pinned at upstream commit `957d009`.
+- Token additivity is verified upstream against 2,048 native vectors, but those vectors are
+  not shipped, so it cannot be re-checked locally.
+- The badge slot allocator formula is unresolved upstream. The `slots` array is read but
+  nothing is computed from it.
+- Cap breaker data is valid only for the reference body, PG 6'3" 198 lb 78 in wingspan.

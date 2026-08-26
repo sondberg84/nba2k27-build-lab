@@ -1,7 +1,6 @@
 """Builder reference data and the attribute name mapping."""
 
 import functools
-import json
 
 from buildlab import sources
 
@@ -30,14 +29,9 @@ TUNING_NAME = {
 }
 
 
-def _rows(rel):
-    payload = json.loads(sources.path_for(rel).read_text(encoding="utf-8"))
-    return payload["data"] if isinstance(payload, dict) else payload
-
-
 @functools.lru_cache(maxsize=1)
 def attributes():
-    return sorted(_rows("reference/attributes.json"), key=lambda a: a["index"])
+    return sorted(sources.rows_for("reference/attributes.json"), key=lambda a: a["index"])
 
 
 @functools.lru_cache(maxsize=1)
@@ -53,4 +47,4 @@ def tuning_order():
 
 @functools.lru_cache(maxsize=1)
 def legal_bodies():
-    return _rows("bodies/legal_bodies.json")
+    return sources.rows_for("bodies/legal_bodies.json")

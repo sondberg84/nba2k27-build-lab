@@ -29,5 +29,52 @@ class TestCli(unittest.TestCase):
         self.assertEqual(cli.parse_height("7-4"), 88)
 
 
+class TestBadgesCommand(unittest.TestCase):
+    def run_cli(self, argv):
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            code = cli.main(argv)
+        return code, buffer.getvalue()
+
+    def test_badges_lists_unlocked_badges(self):
+        values = ",".join(["99"] * 21)
+        code, out = self.run_cli(["badges", "--height", "6-3", "--values", values])
+        self.assertEqual(code, 0)
+        self.assertIn("UNLOCKED", out)
+        self.assertIn("hall_of_fame", out)
+
+    def test_badges_reports_none_for_a_floor_build(self):
+        values = ",".join(["25"] * 21)
+        code, out = self.run_cli(["badges", "--height", "6-3", "--values", values])
+        self.assertEqual(code, 0)
+        self.assertIn("UNLOCKED  0", out)
+
+    def test_badges_rejects_wrong_attribute_count(self):
+        code, out = self.run_cli(["badges", "--height", "6-3", "--values", "70,70"])
+        self.assertEqual(code, 2)
+        self.assertIn("21", out)
+
+    def test_badges_shows_the_token_basis(self):
+        values = ",".join(["80"] * 21)
+        _, out = self.run_cli(["badges", "--height", "6-3", "--values", values])
+        self.assertIn("TOKENS EARNED", out)
+        self.assertIn("additive", out.lower())
+
+    def test_badges_survives_a_tall_build_without_token_data(self):
+        # Height 7-0 is 84 inches, inside the range where token data is not
+        # trustworthy. Badges still work; tokens must degrade gracefully.
+        values = ",".join(["90"] * 21)
+        code, out = self.run_cli(["badges", "--height", "7-0", "--values", values])
+        self.assertEqual(code, 0)
+        self.assertIn("UNLOCKED", out)
+        self.assertIn("unavailable", out.lower())
+        self.assertNotIn("TOKENS EARNED  0", out)
+
+    def test_badges_prints_costs_for_unlocked_badges(self):
+        values = ",".join(["99"] * 21)
+        _, out = self.run_cli(["badges", "--height", "6-3", "--values", values])
+        self.assertIn("tokens", out.lower())
+
+
 if __name__ == "__main__":
     unittest.main()
