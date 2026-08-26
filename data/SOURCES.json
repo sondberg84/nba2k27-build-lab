@@ -71,6 +71,18 @@
           "bytes": 1336356
         }
       }
+    },
+    {
+      "name": "user-local-documents",
+      "url": "local",
+      "commit": "n/a",
+      "files": {
+        "local/animation_requirements.md": {
+          "local": "data/local/animation_requirements.md",
+          "sha256": "177e0ce54f8ed8fc2b2caa0a83e57515a80a03e1df528d1687cbd1a5d44a6b45",
+          "bytes": 73653
+        }
+      }
     }
   ]
 }
