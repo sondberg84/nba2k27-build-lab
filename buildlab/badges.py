@@ -67,3 +67,70 @@ def eligible_at_height(height_inches):
         for b in definitions()
         if b["allowed"] and height_eligible(b["badge"], height_inches)
     )
+
+
+# Ordered worst to best. `legend` is deliberately absent: it has no attribute
+# requirement anywhere in tier_requirements.json and every legend row in
+# token_costs.json has cost 0, because it is not purchasable at build creation.
+TIERS = ("bronze", "silver", "gold", "hall_of_fame")
+
+
+@functools.lru_cache(maxsize=1)
+def tier_requirements():
+    return _rows("badges/tier_requirements.json")
+
+
+@functools.lru_cache(maxsize=1)
+def _requirements_index():
+    return {(r["badge"], r["tier"]): r["requirements"] for r in tier_requirements()}
+
+
+def requirements_for(badge_id, tier):
+    index = _requirements_index()
+    if (badge_id, tier) not in index:
+        raise KeyError(
+            f"no requirements for badge {badge_id} at tier {tier!r}; "
+            f"tiers with requirements are {TIERS}"
+        )
+    return index[(badge_id, tier)]
+
+
+def meets(badge_id, tier, values):
+    """Whether a 21-value attribute vector satisfies this badge tier.
+
+    Requirement lists hold one or two entries. Two entries are joined by the
+    `operator_to_next` of the FIRST entry. The operator on the last entry is a
+    terminator with nothing to join to and is ignored.
+    """
+    requirements = requirements_for(badge_id, tier)
+    satisfied = [values[r["attribute"]] >= r["minimum"] for r in requirements]
+    if len(satisfied) == 1:
+        return satisfied[0]
+    if requirements[0]["operator_to_next"] == "OR":
+        return satisfied[0] or satisfied[1]
+    return satisfied[0] and satisfied[1]
+
+
+def best_tier(badge_id, values, height_inches):
+    """Highest tier this build qualifies for, or None."""
+    if not height_eligible(badge_id, height_inches):
+        return None
+    best = None
+    for tier in TIERS:
+        try:
+            qualifies = meets(badge_id, tier, values)
+        except KeyError:
+            continue
+        if qualifies:
+            best = tier
+    return best
+
+
+def unlocked(values, height_inches):
+    """Badge id -> best qualifying tier, for every badge this build unlocks."""
+    out = {}
+    for badge_id in eligible_at_height(height_inches):
+        tier = best_tier(badge_id, values, height_inches)
+        if tier is not None:
+            out[badge_id] = tier
+    return out

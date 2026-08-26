@@ -57,5 +57,84 @@ class TestHeightEligibility(unittest.TestCase):
         self.assertNotEqual(at_69, at_88)
 
 
+class TestTierRequirements(unittest.TestCase):
+    def test_two_hundred_and_twelve_requirement_rows(self):
+        self.assertEqual(len(badges.tier_requirements()), 212)
+
+    def test_four_tiers_have_requirements(self):
+        self.assertEqual(badges.TIERS, ("bronze", "silver", "gold", "hall_of_fame"))
+
+    def test_requirement_lists_are_one_or_two_entries(self):
+        for row in badges.tier_requirements():
+            with self.subTest(badge=row["name"], tier=row["tier"]):
+                self.assertIn(len(row["requirements"]), (1, 2))
+
+    def test_float_game_bronze_is_an_or(self):
+        # close_shot 65 OR driving_layup 65 — either alone qualifies.
+        values = [0] * 21
+        values[0] = 65
+        self.assertTrue(badges.meets(17, "bronze", values))
+        values = [0] * 21
+        values[1] = 65
+        self.assertTrue(badges.meets(17, "bronze", values))
+        self.assertFalse(badges.meets(17, "bronze", [0] * 21))
+
+    def test_trailing_operator_is_ignored(self):
+        # A single-entry requirement must qualify on that entry alone,
+        # regardless of the terminator its operator_to_next carries.
+        singles = [r for r in badges.tier_requirements() if len(r["requirements"]) == 1]
+        self.assertGreater(len(singles), 0)
+        row = singles[0]
+        req = row["requirements"][0]
+        values = [0] * 21
+        values[req["attribute"]] = req["minimum"]
+        self.assertTrue(badges.meets(row["badge"], row["tier"], values))
+
+    def test_and_requires_both_attributes(self):
+        ands = [
+            r
+            for r in badges.tier_requirements()
+            if len(r["requirements"]) == 2
+            and r["requirements"][0]["operator_to_next"] == "AND"
+        ]
+        self.assertGreater(len(ands), 0)
+        row = ands[0]
+        first, second = row["requirements"]
+        only_first = [0] * 21
+        only_first[first["attribute"]] = first["minimum"]
+        self.assertFalse(badges.meets(row["badge"], row["tier"], only_first))
+        both = list(only_first)
+        both[second["attribute"]] = second["minimum"]
+        self.assertTrue(badges.meets(row["badge"], row["tier"], both))
+
+    def test_legend_has_no_attribute_path(self):
+        # Legend never appears in tier_requirements: it cannot be reached by
+        # raising attributes, only through a Max Plus 2 fuse slot.
+        self.assertNotIn("legend", {r["tier"] for r in badges.tier_requirements()})
+        with self.assertRaises(KeyError):
+            badges.meets(17, "legend", [99] * 21)
+
+    def test_best_tier_returns_the_highest_qualifying_tier(self):
+        self.assertIsNone(badges.best_tier(17, [0] * 21, height_inches=75))
+        self.assertEqual(badges.best_tier(17, [99] * 21, height_inches=75), "hall_of_fame")
+
+    def test_best_tier_respects_height_eligibility(self):
+        restricted = next(
+            b for b in badges.definitions() if b["height_inches"] != badges.UNRESTRICTED
+        )
+        outside = restricted["height_inches"][1] + 1
+        self.assertIsNone(
+            badges.best_tier(restricted["badge"], [99] * 21, height_inches=outside)
+        )
+
+    def test_unlocked_lists_every_qualifying_badge(self):
+        maxed = badges.unlocked([99] * 21, height_inches=75)
+        self.assertGreater(len(maxed), 0)
+        for badge_id, tier in maxed.items():
+            with self.subTest(badge=badge_id):
+                self.assertIn(tier, badges.TIERS)
+        self.assertEqual(badges.unlocked([0] * 21, height_inches=75), {})
+
+
 if __name__ == "__main__":
     unittest.main()
