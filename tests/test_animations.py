@@ -225,6 +225,28 @@ class TestReachability(unittest.TestCase):
         self.assertEqual(real["max_height"], row["max_height"])
         self.assertFalse(real["narrower_than_stated"])
 
+    def test_blocked_by_is_reported_for_a_bottom_narrowed_package(self):
+        # 31 packages narrow from the BOTTOM, not the top: a big-man
+        # requirement no short body can reach. Measuring shortfall only at the
+        # max height missed every one of them and reported no blocker.
+        real = animations.reachable_range(
+            "Jordan Kilganon Alley-Oop", "Alley-Oops - City Alley-Oops"
+        )
+        self.assertTrue(real["narrower_than_stated"])
+        self.assertGreater(real["min_height"], 69)
+        self.assertIsNotNone(real["blocked_by"])
+
+    def test_every_narrowed_package_names_its_blocker(self):
+        # The invariant the docstring promises: if the reachable range is
+        # narrower than stated, something must be named as the cause.
+        for row in animations.packages():
+            if not row["requirements"]:
+                continue
+            real = animations.reachable_range(row["name"], row["family"])
+            if real["narrower_than_stated"]:
+                with self.subTest(name=row["name"], family=row["family"]):
+                    self.assertIsNotNone(real["blocked_by"])
+
     def test_max_ceiling_at_matches_body_ceilings(self):
         # The scan must agree with body.ceilings for a known body.
         from buildlab import body

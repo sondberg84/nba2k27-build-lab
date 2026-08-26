@@ -89,5 +89,14 @@ class TestFullCost(unittest.TestCase):
         self.assertEqual(cost["driving_layup"], 74)
 
 
+    def test_the_fixed_point_converges(self):
+        # Guards against a future data change introducing a positive-weight
+        # cycle, which would otherwise loop forever in silence.
+        for height in (69, 75, 81, 88):
+            with self.subTest(height=height):
+                cost = ladders.full_cost_of({"speed_with_ball": 94}, height)
+                self.assertGreater(len(cost), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

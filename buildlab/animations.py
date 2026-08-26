@@ -209,11 +209,24 @@ def reachable_range(name, family):
     stated_span = row["max_height"] - row["min_height"] + 1
     blocked_by = None
     if len(heights) < stated_span:
+        # Measure the shortfall at whichever end was actually trimmed. A
+        # package can narrow from the top (a guard requirement whose ceiling
+        # falls as height rises) or from the bottom (a big-man requirement no
+        # short body can reach). Probing only the max height missed all 31 of
+        # the bottom-narrowed packages and reported no blocker for them.
+        probes = []
+        if row["max_height"] not in heights:
+            probes.append(row["max_height"])
+        if row["min_height"] not in heights:
+            probes.append(row["min_height"])
+        if not probes:
+            probes = [row["min_height"], row["max_height"]]
         worst = None
-        for attribute, minimum in row["requirements"].items():
-            shortfall = minimum - max_ceiling_at(row["max_height"], attribute)
-            if worst is None or shortfall > worst[1]:
-                worst = (attribute, shortfall)
+        for probe in probes:
+            for attribute, minimum in row["requirements"].items():
+                shortfall = minimum - max_ceiling_at(probe, attribute)
+                if worst is None or shortfall > worst[1]:
+                    worst = (attribute, shortfall)
         if worst and worst[1] > 0:
             blocked_by = worst[0]
     return {

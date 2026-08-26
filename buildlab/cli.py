@@ -12,6 +12,11 @@ from buildlab import (
 )
 
 
+def _ft(inches):
+    """Whole inches back to the feet-inches form the CLI accepts."""
+    return f"{inches // 12}-{inches % 12}"
+
+
 def parse_height(text):
     feet, _, inches = text.partition("-")
     return int(feet) * 12 + int(inches)
@@ -128,6 +133,41 @@ def _ladder(args):
     return 0
 
 
+def _reachability(args):
+    families = animations_mod.families()
+    if args.family is not None and args.family not in families:
+        print(f"error: no family named {args.family!r}")
+        return 2
+    rows = [
+        row
+        for row in animations_mod.packages()
+        if row["requirements"]
+        and (args.family is None or row["family"] == args.family)
+    ]
+    narrowed = []
+    for row in rows:
+        real = animations_mod.reachable_range(row["name"], row["family"])
+        if real["narrower_than_stated"]:
+            narrowed.append((row, real))
+    print(f"CHECKED    {len(rows)} packages with attribute requirements")
+    print(
+        f"NARROWED   {len(narrowed)} are blocked by ceilings inside their "
+        "stated height range"
+    )
+    print()
+    for row, real in sorted(
+        narrowed, key=lambda pair: pair[0]["family"] + pair[0]["name"]
+    ):
+        stated = f"{_ft(row['min_height'])} to {_ft(row['max_height'])}"
+        if real["min_height"] is None:
+            actual = "never reachable"
+        else:
+            actual = f"{_ft(real['min_height'])} to {_ft(real['max_height'])}"
+        print(f"  {row['family']}: {row['name']}")
+        print(f"    stated {stated}   actually {actual}   blocked by {real['blocked_by']}")
+    return 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="buildlab")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -150,6 +190,13 @@ def main(argv=None):
     la.add_argument("--height", required=True, help="feet-inches, e.g. 6-3")
     la.add_argument("--attribute", required=True, help="builder attribute name")
     la.set_defaults(func=_ladder)
+
+    rc = sub.add_parser(
+        "reachability",
+        help="animations blocked by ceilings inside their stated height range",
+    )
+    rc.add_argument("--family", default=None, help="restrict to one family")
+    rc.set_defaults(func=_reachability)
 
     args = parser.parse_args(argv)
     return args.func(args)

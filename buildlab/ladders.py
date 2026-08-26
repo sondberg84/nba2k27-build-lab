@@ -110,8 +110,11 @@ def full_cost_of(targets, height_inches):
     from_tuning = {v: k for k, v in to_tuning.items()}
 
     resolved = dict(targets)
-    changed = True
-    while changed:
+    # The constraint graph has no positive-weight cycle in the current data, so
+    # this converges in at most one pass per attribute. A future tuning update
+    # that introduced one would otherwise spin forever in silence, which is the
+    # opposite of how this codebase handles bad data.
+    for _ in range(len(reference.attribute_names()) + 1):
         changed = False
         for attribute, minimum in list(resolved.items()):
             rules = constraints.rules_for(to_tuning[attribute], bucket)
@@ -123,4 +126,11 @@ def full_cost_of(targets, height_inches):
                 if needed > resolved.get(partner, 0):
                     resolved[partner] = needed
                     changed = True
+        if not changed:
+            break
+    else:
+        raise RuntimeError(
+            "linked attribute constraints did not converge; the tuning data may "
+            "contain a positive-weight cycle"
+        )
     return {k: v for k, v in resolved.items() if v > ATTRIBUTE_FLOOR}

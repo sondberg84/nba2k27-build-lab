@@ -63,6 +63,22 @@ that unlock nothing simply do not appear, so the gaps between rows are the waste
 Attribute names are the snake_case ones: `ball_handle`, `speed_with_ball`, `three_point`,
 `driving_dunk`, `perimeter_defense`, and so on.
 
+The ceiling it reports is the best any legal body can reach at that height. A heavier
+build, or one with a shorter wingspan, may fall short of it — so treat the top of the
+ladder as the best case for that height, not a promise for your specific body.
+
+### `reachability` — which animations lie about their height range
+
+```bash
+python -m buildlab.cli reachability
+python -m buildlab.cli reachability --family "Dribble Style"
+```
+
+Lists every animation that cannot actually be reached somewhere inside its own published
+height range, because no legal body at that height has a high enough attribute ceiling.
+There are **397 of them**, including 21 of the 39 dribble styles. For each it shows the
+stated range, the real one, and which attribute is doing the blocking.
+
 ---
 
 ## Height format
@@ -154,9 +170,14 @@ python -c "from buildlab import sources; sources.verify()"
 
 ## Updating the data
 
-The upstream dataset is pinned to a specific commit, so it never changes underneath you.
+Two different sources, updated two different ways.
 
-If you edit `2k27-animation-requirements.md` in the folder above this one, re-import it:
+The **upstream game data** is pinned to an exact commit and hash-verified, so it never
+changes underneath you. Re-pulling it is a deliberate act, not something that happens by
+accident.
+
+The **animation requirements** come from your own `2k27-animation-requirements.md` in the
+folder above this one. If you edit that file, re-import it:
 
 ```bash
 python tools/vendor_local.py

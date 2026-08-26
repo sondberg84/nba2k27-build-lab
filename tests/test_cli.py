@@ -120,5 +120,16 @@ class TestAnimationsCommand(unittest.TestCase):
         self.assertEqual(code, 2)
 
 
+    def test_reachability_lists_narrowed_packages(self):
+        code, out = self.run_cli(["reachability", "--family", "Dribble Style"])
+        self.assertEqual(code, 0)
+        self.assertIn("NARROWED", out)
+        self.assertIn("Kyrie Irving", out)
+
+    def test_reachability_rejects_an_unknown_family(self):
+        code, out = self.run_cli(["reachability", "--family", "Not A Family"])
+        self.assertEqual(code, 2)
+
+
 if __name__ == "__main__":
     unittest.main()
