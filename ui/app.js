@@ -21,7 +21,11 @@ function writeHash() {
 }
 
 function readHash() {
-  const params = new URLSearchParams(location.hash.slice(1));
+  // Accept the build from either the hash or the query string. Some tools and
+  // chat clients drop a #fragment when a link is copied, so ?h=..&v=.. is the
+  // more robust form to hand to someone.
+  const raw = location.hash.slice(1) || location.search.slice(1);
+  const params = new URLSearchParams(raw);
   const height = Number(params.get("h"));
   const values = (params.get("v") || "").split(",").filter(Boolean).map(Number);
   if (!height || values.length !== 21 || values.some(Number.isNaN)) return null;

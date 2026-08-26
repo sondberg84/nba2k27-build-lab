@@ -30,6 +30,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
+        # Never let a browser cache the page or its assets. This is a local
+        # tool whose files change whenever the project does, and a stale
+        # cached app.js silently serves old behaviour against a new engine —
+        # which is exactly the kind of quiet wrongness this project avoids.
+        self.send_header("Cache-Control", "no-store, must-revalidate")
         self.end_headers()
         self.wfile.write(body)
 
@@ -41,7 +46,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         )
 
     def do_GET(self):
-        if self.path == "/api/health":
+        # Strip any query string before routing. A build can be shared as
+        # ?h=..&v=.. as well as #h=..&v=.., and the raw path would otherwise
+        # never match the static allowlist.
+        route = self.path.split("?", 1)[0]
+        if route == "/api/health":
             problems = sources.verify_all()
             self._send_json(
                 200,
@@ -52,11 +61,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 },
             )
             return
-        if self.path == "/api/meta":
+        if route == "/api/meta":
             self._send_json(200, api.meta())
             return
-        if self.path in STATIC:
-            name, content_type = STATIC[self.path]
+        if route in STATIC:
+            name, content_type = STATIC[route]
             path = UI / name
             if not path.exists():
                 self._send_json(404, {"error": f"missing {name}"})
@@ -64,6 +73,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._send(200, path.read_bytes(), content_type)
             return
         self._send_json(404, {"error": f"no such path {self.path}"})
+
+    def do_HEAD(self):
+        self.do_GET()
 
     def do_POST(self):
         length = int(self.headers.get("Content-Length", 0))
