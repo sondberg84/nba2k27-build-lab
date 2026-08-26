@@ -91,6 +91,107 @@ class TestParser(unittest.TestCase):
         with self.assertRaises(KeyError):
             animations.by_name("Not A Real Package", family="Dribble Style")
 
+    def test_families_is_sortable_and_complete(self):
+        # Motion styles has no sub-headings, so its rows take the section name
+        # as their family. Without that, families() raises on sorting None.
+        names = animations.families()
+        self.assertEqual(len(names), 52)
+        self.assertIn("Motion styles", names)
+        self.assertNotIn(None, names)
+
+    def test_motion_styles_rows_are_addressable(self):
+        row = animations.by_name("Base", family="Motion styles")
+        self.assertEqual(row["section"], "Motion styles")
+        self.assertEqual(row["min_height"], 69)
+        self.assertEqual(row["max_height"], 88)
+
+
+class TestAvailability(unittest.TestCase):
+    def test_a_floor_build_gets_only_unrestricted_packages(self):
+        available = animations.available([25] * 21, height_inches=75)
+        self.assertGreater(len(available), 0)
+        for row in available:
+            with self.subTest(name=row["name"]):
+                self.assertTrue(
+                    all(minimum <= 25 for minimum in row["requirements"].values())
+                )
+
+    def test_a_maxed_build_gets_more_than_a_floor_build(self):
+        low = animations.available([25] * 21, height_inches=75)
+        high = animations.available([99] * 21, height_inches=75)
+        self.assertGreater(len(high), len(low))
+
+    def test_height_gates_are_enforced(self):
+        # "Kyrie Irving" names packages in 34 families, so the assertion must
+        # be scoped to one of them. The Dribble Style row caps at 6'4"; its
+        # Pass Style row runs to 7'4" and would mask the gate if we matched on
+        # name alone.
+        values = [99] * 21
+
+        def has_dribble_style(height_inches):
+            return any(
+                row["name"] == "Kyrie Irving" and row["family"] == "Dribble Style"
+                for row in animations.available(values, height_inches=height_inches)
+            )
+
+        self.assertTrue(has_dribble_style(76))
+        self.assertFalse(has_dribble_style(77))
+
+    def test_available_in_family_filters(self):
+        rows = animations.available(
+            [99] * 21, height_inches=75, family="Dribble Style"
+        )
+        self.assertGreater(len(rows), 0)
+        for row in rows:
+            with self.subTest(name=row["name"]):
+                self.assertEqual(row["family"], "Dribble Style")
+
+    def test_missing_requirement_blocks_a_package(self):
+        # Same scoping requirement: lowering speed_with_ball blocks the Dribble
+        # Style row but leaves the Post Go-To Shot and Pass Style rows of the
+        # same name untouched.
+        from buildlab import reference
+
+        index = reference.attribute_names().index("speed_with_ball")
+
+        def has_dribble_style(speed_with_ball):
+            values = [99] * 21
+            values[index] = speed_with_ball
+            return any(
+                row["name"] == "Kyrie Irving" and row["family"] == "Dribble Style"
+                for row in animations.available(values, height_inches=75)
+            )
+
+        self.assertFalse(has_dribble_style(93))
+        self.assertTrue(has_dribble_style(94))
+
+    def test_requirements_of_reports_every_gate(self):
+        gates = animations.requirements_of("Kyrie Irving", family="Dribble Style")
+        self.assertEqual(gates["requirements"], {"speed_with_ball": 94})
+        self.assertEqual(gates["min_height"], 69)
+        self.assertEqual(gates["max_height"], 76)
+
+    def test_available_rejects_a_wrong_length_vector(self):
+        with self.assertRaises(ValueError):
+            animations.available([50] * 20, height_inches=75)
+
+    def test_height_gates_collapse_into_three_bands(self):
+        # min_height takes only 3 values and max_height only 3, so every
+        # package sits in one of three height bands. The boundaries at 6'4"/6'5"
+        # and 6'9"/6'10" are where availability changes sharply, and 375
+        # packages drop out at the first one alone.
+        rows = animations.packages()
+        self.assertEqual(sorted({r["min_height"] for r in rows}), [69, 77, 82])
+        self.assertEqual(sorted({r["max_height"] for r in rows}), [76, 81, 88])
+
+        maxed = [99] * 21
+        counts = {
+            h: len(animations.available(maxed, height_inches=h))
+            for h in (76, 77, 81, 82)
+        }
+        self.assertGreater(counts[77], counts[76])
+        self.assertGreater(counts[81], counts[82])
+
 
 if __name__ == "__main__":
     unittest.main()

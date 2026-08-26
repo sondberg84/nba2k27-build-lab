@@ -3,7 +3,7 @@
 import functools
 import re
 
-from buildlab import sources
+from buildlab import reference, sources
 
 REL = "local/animation_requirements.md"
 
@@ -90,7 +90,11 @@ def packages():
         rows.append(
             {
                 "name": name,
-                "family": family,
+                # Motion styles is one flat table with no `###` sub-headings,
+                # so its 353 rows have no family of their own. The section is
+                # the family in that case, which keeps every row addressable
+                # by (family, name) and stops families() sorting None.
+                "family": family or section,
                 "section": section,
                 "min_height": _height(row["Min Height"]),
                 "max_height": _height(row["Max Height"]),
@@ -115,3 +119,35 @@ def by_name(name, family):
 @functools.lru_cache(maxsize=1)
 def families():
     return tuple(sorted({r["family"] for r in packages()}))
+
+
+def _qualifies(row, values, height_inches, name_index):
+    if not row["min_height"] <= height_inches <= row["max_height"]:
+        return False
+    for attribute, minimum in row["requirements"].items():
+        if values[name_index[attribute]] < minimum:
+            return False
+    return True
+
+
+def available(values, height_inches, family=None):
+    """Packages this build can use, optionally filtered to one family."""
+    if len(values) != 21:
+        raise ValueError(f"expected 21 attribute values, got {len(values)}")
+    name_index = {n: i for i, n in enumerate(reference.attribute_names())}
+    return [
+        row
+        for row in packages()
+        if (family is None or row["family"] == family)
+        and _qualifies(row, values, height_inches, name_index)
+    ]
+
+
+def requirements_of(name, family):
+    """Every gate on a package: attribute minimums and the height range."""
+    row = by_name(name, family)
+    return {
+        "requirements": dict(row["requirements"]),
+        "min_height": row["min_height"],
+        "max_height": row["max_height"],
+    }
