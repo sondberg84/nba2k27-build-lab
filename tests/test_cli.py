@@ -263,5 +263,22 @@ class TestRateCommand(unittest.TestCase):
         self.assertEqual(code, 2)
 
 
+class TestServeCommand(unittest.TestCase):
+    def test_serve_rejects_a_bad_port(self):
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            code = cli.main(["serve", "--port", "99999"])
+        self.assertEqual(code, 2)
+        self.assertIn("port", buffer.getvalue().lower())
+
+    def test_serve_is_a_registered_command(self):
+        # Argparse should know about it without starting a server.
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            with self.assertRaises(SystemExit):
+                cli.main(["--help"])
+        self.assertIn("serve", buffer.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()
