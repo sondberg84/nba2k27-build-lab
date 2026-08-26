@@ -21,7 +21,7 @@ attributes, in the order the in-game builder lists them.
 
 ---
 
-## The four commands
+## The seven commands
 
 ### `eval` — what is this build?
 
@@ -66,6 +66,37 @@ Attribute names are the snake_case ones: `ball_handle`, `speed_with_ball`, `thre
 The ceiling it reports is the best any legal body can reach at that height. A heavier
 build, or one with a shorter wingspan, may fall short of it — so treat the top of the
 ladder as the best case for that height, not a promise for your specific body.
+
+### `solve` — what's the cheapest build that does X?
+
+```bash
+python -m buildlab.cli solve --attribute three_point=95 --attribute perimeter_defense=90
+python -m buildlab.cli solve --animation "Dribble Style:Kyrie Irving" --badge ankle_assassin=gold
+python -m buildlab.cli solve --badge float_game=hall_of_fame --height 6-6
+```
+
+You state goals — attribute floors, badges at a tier, specific animations — and it finds
+the cheapest build meeting all of them, tells you every height where it works, and prints
+the attributes you actually need.
+
+When it can't be done it says so and names why. Ask for a guard animation and a big-man
+badge together and it will tell you they share no legal height, rather than shrugging.
+
+Goals are repeatable and mixable. `--height` pins it to one height instead of searching.
+
+### `critique` — is this build any good?
+
+```bash
+python -m buildlab.cli critique --height 6-4 --values <21 numbers>
+python -m buildlab.cli critique --height 6-4 --values <21 numbers> --claim ankle_assassin=hall_of_fame
+```
+
+Point it at a build somebody proposed — off a video, off a forum — and it reports the
+overall, the badges, how many points are buying nothing, and any attribute that is above
+its ceiling and therefore impossible.
+
+`--claim` checks stated badge claims against reality. If a video says a build gets
+hall-of-fame Ankle Assassin and it actually reaches silver, this is where you find out.
 
 ### `reachability` — which animations lie about their height range
 
@@ -204,6 +235,9 @@ buildlab/     the engine
   capbreakers cap breaker gains
   animations  animation package requirements
   ladders     what each point buys
+  goals       goal types and the floors they imply
+  solver      cheapest build meeting a set of goals
+  critique    evaluate a build somebody proposed
   cli         the commands above
 
 data/         the pinned game data, hash-verified

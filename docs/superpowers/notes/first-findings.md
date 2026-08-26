@@ -328,3 +328,74 @@ Aerial Wizard hall-of-fame, 99 for Rise Up hall-of-fame — with dead stretches 
   Spin Jumper only. This remains the single largest gap in the animation data.
 - Reachability is computed against the best legal body at each height. A specific build with
   a heavier frame or shorter wingspan may fall short where the scan says the height works.
+
+---
+
+# Phase 3 findings — what the solver says
+
+## 15. A fast centre does not exist above 6'9"
+
+The original question this project was started to answer. The speed attributes fall off a
+cliff as height rises — best ceiling across every legal body at each height:
+
+```
+height    speed   agility   speed w/ball
+6'5"         97        97             89
+6'7"         91        91             83
+6'9"         86        86             75      <- last height that is still quick
+6'10"        82        78             72
+7'0"         76        68             65
+7'2"         68        52             51
+7'4"         62        47             44
+```
+
+**At 7'0" agility is capped at 68.** Asking the solver for a 7-footer with 80 speed and 80
+agility returns `not feasible: needs agility 80 but the ceiling at 7'0 is 68`.
+
+Solving across the centre range (6'7"–7'4"):
+
+```
+speed and agility 90    feasible only at 6'7"
+speed and agility 85    6'7" to 6'9"
+speed and agility 80    6'7" to 6'9"
+speed and agility 70    6'7" to 6'11"
+```
+
+So a fast centre is a **6'7"–6'9" build**, and 6'9" is the last height where it holds
+together. That is the same boundary as the animation cliff: cross to 6'10" and you lose
+both the agility and roughly half the animation packages.
+
+And it can still protect the rim — 85 speed, 85 agility, 80 block and 80 standing dunk is
+feasible.
+
+## 16. What a real goal costs
+
+Kyrie Irving's dribble style, solved as a single goal, cheapest at 5'9":
+
+```
+483 upgrade points, overall 78
+speed 94, speed with ball 94, ball handle 93, agility 79, driving layup 78,
+pass accuracy 68, perimeter defence 64, vertical 64, close shot 58, steal 34,
+defensive rebound 29, post control 28
+```
+
+Twelve attributes for one dribble animation. Nobody quotes it that way.
+
+The five most expensive badges to reach at hall-of-fame, each at its own cheapest height:
+
+```
+posterizer        514 points at 6'8"
+post_powerhouse   500 points at 6'9"
+breaker           495 points at 6'9"
+ankle_braces      486 points at 6'4"
+pick_dodger       464 points at 6'7"
+```
+
+## A note on cost
+
+`points` is the sum of upgrades above the 25 floor — literally how many attribute
+increases the build needs. It is exact.
+
+It is **not VC**. The tuning file contains VC keys but no verified pricing formula exists
+in this project, and phase 1's derivation explicitly rejected the price-cap curve as part
+of the overall-rating maths. Nothing here should be read as a VC estimate.
