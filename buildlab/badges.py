@@ -103,6 +103,12 @@ def meets(badge_id, tier, values):
     terminator with nothing to join to and is ignored.
     """
     requirements = requirements_for(badge_id, tier)
+    if len(requirements) not in (1, 2):
+        raise ValueError(
+            f"badge {badge_id} tier {tier!r} has {len(requirements)} requirements; "
+            "only 1 or 2 are understood, and the join logic below would silently "
+            "ignore the rest"
+        )
     satisfied = [values[r["attribute"]] >= r["minimum"] for r in requirements]
     if len(satisfied) == 1:
         return satisfied[0]
@@ -112,16 +118,17 @@ def meets(badge_id, tier, values):
 
 
 def best_tier(badge_id, values, height_inches):
-    """Highest tier this build qualifies for, or None."""
+    """Highest tier this build qualifies for, or None.
+
+    Every badge has all four tiers today, asserted by
+    test_every_badge_has_all_four_tiers. A missing tier therefore means the
+    data changed, and that must raise rather than be silently skipped.
+    """
     if not height_eligible(badge_id, height_inches):
         return None
     best = None
     for tier in TIERS:
-        try:
-            qualifies = meets(badge_id, tier, values)
-        except KeyError:
-            continue
-        if qualifies:
+        if meets(badge_id, tier, values):
             best = tier
     return best
 

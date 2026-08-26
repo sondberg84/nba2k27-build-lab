@@ -135,6 +135,31 @@ class TestTierRequirements(unittest.TestCase):
                 self.assertIn(tier, badges.TIERS)
         self.assertEqual(badges.unlocked([0] * 21, height_inches=75), {})
 
+    def test_every_badge_has_all_four_tiers(self):
+        # The 212 row count alone would not catch an uneven distribution, and
+        # best_tier now relies on every tier being present rather than
+        # silently skipping a missing one.
+        by_badge = {}
+        for row in badges.tier_requirements():
+            by_badge.setdefault(row["badge"], set()).add(row["tier"])
+        self.assertEqual(len(by_badge), 53)
+        for badge_id, tiers in by_badge.items():
+            with self.subTest(badge=badge_id):
+                self.assertEqual(tiers, set(badges.TIERS))
+
+    def test_meets_rejects_an_unexpected_requirement_count(self):
+        # Guards the satisfied[0]/satisfied[1] indexing in meets(). Injects a
+        # third entry into the cached index and restores it afterwards.
+        index = badges._requirements_index()
+        key = (17, "bronze")
+        original = index[key]
+        index[key] = list(original) + [dict(original[0])]
+        try:
+            with self.assertRaises(ValueError):
+                badges.meets(17, "bronze", [99] * 21)
+        finally:
+            index[key] = original
+
 
 if __name__ == "__main__":
     unittest.main()
