@@ -46,6 +46,38 @@ class TestTokenCosts(unittest.TestCase):
         with self.assertRaises(ValueError):
             tokens.cost_of_loadout({17: "legend"}, 69)
 
+    def test_cost_table_prices_heights_where_a_badge_is_ineligible(self):
+        # rise_up is eligible 77-91 but the cost table still carries rows at 69.
+        # Pinned because it is the trap cost_of_loadout guards against.
+        self.assertFalse(badges.height_eligible(19, 69))
+        self.assertIsInstance(tokens.cost_for(19, "bronze", 69), int)
+
+    def test_cost_of_loadout_rejects_a_height_ineligible_badge(self):
+        with self.assertRaises(ValueError):
+            tokens.cost_of_loadout({19: "bronze"}, 69)
+
+    def test_cumulative_costs_more_than_literal(self):
+        loadout = {17: "hall_of_fame"}
+        literal = tokens.cost_of_loadout(loadout, 75)
+        cumulative = tokens.cost_of_loadout(loadout, 75, cumulative=True)
+        self.assertEqual(literal, tokens.cost_for(17, "hall_of_fame", 75))
+        self.assertEqual(
+            cumulative,
+            sum(tokens.cost_for(17, t, 75) for t in badges.TIERS),
+        )
+        self.assertGreater(cumulative, literal)
+
+    def test_cumulative_stops_at_the_requested_tier(self):
+        loadout = {17: "silver"}
+        self.assertEqual(
+            tokens.cost_of_loadout(loadout, 75, cumulative=True),
+            tokens.cost_for(17, "bronze", 75) + tokens.cost_for(17, "silver", 75),
+        )
+
+    def test_cumulative_still_rejects_legend(self):
+        with self.assertRaises(ValueError):
+            tokens.cost_of_loadout({17: "legend"}, 75, cumulative=True)
+
 
 if __name__ == "__main__":
     unittest.main()

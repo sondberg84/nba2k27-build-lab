@@ -41,8 +41,23 @@ def cost_for(badge_id, tier, height_inches):
     return index[key]
 
 
-def cost_of_loadout(loadout, height_inches):
-    """Total tokens to equip a {badge_id: tier} loadout at this height."""
+def cost_of_loadout(loadout, height_inches, cumulative=False):
+    """Total tokens to equip a {badge_id: tier} loadout at this height.
+
+    The shipped data cannot settle whether a tier's cost is absolute or
+    incremental, so this is a caller's choice:
+
+    - cumulative=False (default): each badge costs exactly its own tier's
+      shipped number. This matches token_costs.json's field description,
+      where `tier` is "tier being equipped" and `cost` is "tokens required".
+    - cumulative=True: a badge at gold costs bronze + silver + gold, on the
+      reading that each row prices one tier STEP. This explains why the
+      shipped numbers decrease with tier (3, 2, 1, 1), which is otherwise
+      hard to account for.
+
+    Neither reading is verified. If a future probe records a real token
+    balance for a known loadout, that settles it.
+    """
     total = 0
     for badge_id, tier in loadout.items():
         if is_unreachable_tier(tier):
@@ -50,5 +65,17 @@ def cost_of_loadout(loadout, height_inches):
                 f"badge {badge_id} at tier {tier!r} cannot be equipped at build "
                 "creation; legend comes only from a Max Plus 2 fuse slot"
             )
-        total += cost_for(badge_id, tier, height_inches)
+        if not badges.height_eligible(badge_id, height_inches):
+            low, high = badges.by_id(badge_id)["height_inches"]
+            raise ValueError(
+                f"badge {badge_id} is not eligible at height {height_inches}; "
+                f"its range is {low}-{high}. The cost table carries rows for "
+                "every height regardless of eligibility, so a raw cost_for "
+                "lookup will happily price a badge you cannot equip."
+            )
+        if cumulative:
+            steps = badges.TIERS[: badges.TIERS.index(tier) + 1]
+            total += sum(cost_for(badge_id, step, height_inches) for step in steps)
+        else:
+            total += cost_for(badge_id, tier, height_inches)
     return total
