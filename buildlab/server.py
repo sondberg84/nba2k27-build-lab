@@ -7,7 +7,6 @@ the server — /api/health reports which commit is being served.
 
 import http.server
 import json
-import pathlib
 
 from buildlab import api, sources
 
