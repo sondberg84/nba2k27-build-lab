@@ -1,6 +1,7 @@
 """Command line entry point."""
 
 import argparse
+import webbrowser
 
 from buildlab import (
     animations as animations_mod,
@@ -12,7 +13,9 @@ from buildlab import (
     ratings as ratings_mod,
     reference,
     refresh as refresh_mod,
+    server as server_mod,
     solver,
+    sources,
     tokens,
 )
 
@@ -418,6 +421,39 @@ def _rate(args):
     return 0
 
 
+def _serve(args):
+    if not 1 <= args.port <= 65535:
+        print(f"error: port {args.port} is outside the valid range 1-65535")
+        return 2
+
+    problems = sources.verify_all()
+    if problems:
+        print(f"error: {len(problems)} data files do not match the manifest")
+        for problem in problems:
+            print(f"  {problem}")
+        return 2
+
+    print("warming the engine…")
+    server_mod.warm()
+    httpd = server_mod.build(port=args.port)
+    host, port = httpd.server_address
+    print(f"BUILD LAB  http://{host}:{port}")
+    print()
+    print("  Data is held for the life of this process. If you re-run")
+    print("  tools/vendor.py, restart the server so it picks up the change.")
+    print("  Ctrl-C to stop.")
+    if not args.no_browser:
+        webbrowser.open(f"http://{host}:{port}")
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print()
+        print("stopped")
+    finally:
+        httpd.server_close()
+    return 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="buildlab")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -471,6 +507,13 @@ def main(argv=None):
     rt.add_argument("--validate", action="store_true", help="check ratings.json")
     rt.add_argument("--shortlist", action="store_true", help="what to test first")
     rt.set_defaults(func=_rate)
+
+    sr = sub.add_parser("serve", help="open the build lab in your browser")
+    sr.add_argument("--port", type=int, default=8765, help="default 8765")
+    sr.add_argument(
+        "--no-browser", action="store_true", help="do not open a browser"
+    )
+    sr.set_defaults(func=_serve)
 
     args = parser.parse_args(argv)
     return args.func(args)

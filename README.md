@@ -10,18 +10,41 @@ have Python, you can run it.
 
 ## Quick start
 
-Open a terminal in this folder and try:
+Open a terminal in this folder and run:
+
+```bash
+python -m buildlab.cli serve
+```
+
+That opens the build lab in your browser: a height picker, twenty-one sliders, and the
+overall, archetype, badges, animations and threshold ladder updating as you drag.
+
+Everything it shows is also available from the command line, which is often faster for a
+specific question:
 
 ```bash
 python -m buildlab.cli eval --height 6-3 --values 47,30,47,26,79,54,87,77,36,55,45,31,73,53,27,40,43,34,85,50,51
 ```
 
-That prints the overall rating and archetype for a build. The 21 numbers are your
-attributes, in the order the in-game builder lists them.
+The 21 numbers are your attributes, in the order the in-game builder lists them.
 
 ---
 
-## The nine commands
+## The commands
+
+### `serve` — the browser page
+
+```bash
+python -m buildlab.cli serve
+python -m buildlab.cli serve --port 9000 --no-browser
+```
+
+Opens a local page with a height picker and twenty-one sliders. Overall, archetype, badge
+count, animation count, upgrade points and badge tokens all update live. Click any attribute
+name to see its threshold ladder alongside. An attribute pushed above its ceiling turns red.
+
+It binds to `127.0.0.1` only — nothing on your network can reach it. The data is loaded once
+when the server starts, so if you re-import data, restart it.
 
 ### `eval` — what is this build?
 

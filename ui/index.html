@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2K27 Build Lab</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <h1>2K27 Build Lab</h1>
+  <p class="pin">data pinned at <span id="commit">…</span></p>
+</header>
+
+<section class="summary">
+  <div class="stat"><span class="label">overall</span><span class="value" id="overall">—</span></div>
+  <div class="stat"><span class="label">archetype</span><span class="value" id="archetype">—</span></div>
+  <div class="stat"><span class="label">badges</span><span class="value" id="badges">—</span></div>
+  <div class="stat"><span class="label">animations</span><span class="value" id="animations">—</span></div>
+  <div class="stat"><span class="label">upgrades</span><span class="value" id="points">—</span></div>
+  <div class="stat"><span class="label">tokens</span><span class="value" id="tokens">—</span></div>
+</section>
+
+<p class="warn" id="warn" hidden></p>
+
+<section class="height">
+  <label for="height">height <output id="heightOut">6-3</output></label>
+  <input type="range" id="height" min="69" max="88" value="75">
+</section>
+
+<main>
+  <section class="sliders" id="sliders"></section>
+  <aside class="ladder">
+    <h2>ladder <span id="ladderAttr">ball_handle</span></h2>
+    <p class="hint">click an attribute name to see what each point buys</p>
+    <ol id="ladderSteps"></ol>
+  </aside>
+</main>
+
+<script src="/app.js"></script>
+</body>
+</html>
