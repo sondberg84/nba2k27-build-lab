@@ -21,7 +21,7 @@ attributes, in the order the in-game builder lists them.
 
 ---
 
-## The seven commands
+## The nine commands
 
 ### `eval` — what is this build?
 
@@ -97,6 +97,35 @@ its ceiling and therefore impossible.
 
 `--claim` checks stated badge claims against reality. If a video says a build gets
 hall-of-fame Ankle Assassin and it actually reaches silver, this is where you find out.
+
+### `refresh` — is there newer game data?
+
+```bash
+python -m buildlab.cli refresh --check
+python -m buildlab.cli refresh --preview
+```
+
+`--check` compares your pinned data against upstream without downloading anything.
+`--preview` fetches to a staging folder — your live data is never touched — diffs it, and
+then runs the game's own 256 test vectors against the staged tables.
+
+That last step is the point. If the staged tables still reproduce the vectors, the change
+is safe. If they don't, either the rules genuinely changed or somebody's capture broke,
+and the tool refuses to adopt rather than guessing which.
+
+### `rate` — your own animation quality notes
+
+```bash
+python -m buildlab.cli rate --shortlist
+python -m buildlab.cli rate --validate
+```
+
+The animation *requirements* come from data. The animation *quality* can't be known until
+you play the game. `data/ratings.json` is where your judgement goes — it's yours, no tool
+writes it, and it is deliberately not hash-pinned so editing it doesn't look like corruption.
+
+`--shortlist` shows the ten families worth testing first and how many you've rated.
+`--validate` checks your file for typos and out-of-range scores.
 
 ### `reachability` — which animations lie about their height range
 
@@ -243,6 +272,8 @@ buildlab/     the engine
   goals       goal types and the floors they imply
   solver      cheapest build meeting a set of goals
   critique    evaluate a build somebody proposed
+  refresh     check, stage and judge new upstream data
+  ratings     your own animation quality scores
   cli         the commands above
 
 data/         the pinned game data, hash-verified

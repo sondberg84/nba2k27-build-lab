@@ -13,11 +13,22 @@ class SourceError(RuntimeError):
     """Raised when vendored data is missing or does not match the manifest."""
 
 
+def parse_manifest(text):
+    """Parse manifest JSON, wrapping a decode failure as SourceError."""
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as error:
+        raise SourceError(
+            f"{MANIFEST} is not valid JSON ({error}); it is machine-generated, "
+            "so re-run tools/vendor.py rather than editing it"
+        ) from error
+
+
 @functools.lru_cache(maxsize=1)
 def load():
     if not MANIFEST.exists():
         raise SourceError(f"missing manifest {MANIFEST}; run tools/vendor.py")
-    return json.loads(MANIFEST.read_text(encoding="utf-8"))
+    return parse_manifest(MANIFEST.read_text(encoding="utf-8"))
 
 
 def _entry(rel):
@@ -57,3 +68,26 @@ def verify():
                     f"{rel} hash mismatch: manifest {entry['sha256'][:12]}, "
                     f"on disk {digest[:12]}"
                 )
+
+
+def verify_all():
+    """Every file whose hash does not match, as a list of messages.
+
+    Returns an empty list when everything matches. Unlike verify(), which stops
+    at the first problem, this reports all of them — a data refresh can break
+    several files at once and seeing one at a time wastes a cycle each.
+    """
+    problems = []
+    for source in load()["sources"]:
+        for rel, entry in source["files"].items():
+            path = ROOT / entry["local"]
+            if not path.exists():
+                problems.append(f"{rel}: missing at {path}")
+                continue
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            if digest != entry["sha256"]:
+                problems.append(
+                    f"{rel}: hash mismatch, manifest {entry['sha256'][:12]}, "
+                    f"on disk {digest[:12]}"
+                )
+    return problems

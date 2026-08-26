@@ -3,7 +3,7 @@
     {
       "name": "nba2k27-builder-dataset",
       "url": "https://github.com/lightmatmul/nba2k27-builder-dataset",
-      "commit": "957d009",
+      "commit": "957d0095182702e34f671e81ecb81efa9def9cb3",
       "files": {
         "reference/attributes.json": {
           "local": "data/engine/reference__attributes.json",

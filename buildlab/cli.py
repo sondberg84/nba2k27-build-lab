@@ -9,7 +9,9 @@ from buildlab import (
     goals as goals_mod,
     ladders,
     ovr,
+    ratings as ratings_mod,
     reference,
+    refresh as refresh_mod,
     solver,
     tokens,
 )
@@ -296,6 +298,126 @@ def _critique(args):
     return 0
 
 
+def _refresh(args):
+    if not (args.check or args.preview or args.adopt):
+        print("error: pick a mode — --check, --preview or --adopt")
+        return 2
+    if args.adopt and not args.preview:
+        print(
+            "error: --adopt only runs together with --preview, so you see the "
+            "diff and the verdict before anything changes"
+        )
+        return 2
+
+    status = refresh_mod.check()
+    print(f"PINNED     {status['pinned'][:12]}")
+    print(f"UPSTREAM   {status['upstream'][:12]}")
+    if not status["behind"]:
+        print("UP TO DATE — nothing to do")
+        return 0
+    print("BEHIND     upstream has moved")
+    if args.check:
+        print()
+        print("  Run again with --preview to fetch and compare without adopting.")
+        return 0
+
+    print()
+    print("STAGING    downloading to data/staging, live data untouched")
+    staged = refresh_mod.stage(status["upstream"])
+    changed = [rel for rel, entry in staged.items() if entry["changed"]]
+    print(f"CHANGED    {len(changed)} of {len(staged)} files")
+    for rel in changed:
+        print(f"  {rel}")
+    print()
+
+    vectors = refresh_mod.staged_rows(staged, "overall/mixed_vectors.json")
+    outcome = refresh_mod.check_vectors(vectors)
+    print(
+        f"VECTORS    {outcome['matched']}/{outcome['total']} reproduce with the "
+        "current engine"
+    )
+    if not outcome["reproduces"]:
+        print()
+        print("VERDICT    real_change or upstream_broken — cannot tell them apart")
+        print(
+            "  The staged tables do not reproduce the staged vectors under the "
+            "current engine. Either the rules changed and the engine needs "
+            "rederiving, or the upstream capture is broken. Not adopting."
+        )
+        for failure in outcome["failures"]:
+            print(
+                f"    sample {failure['sample']}: expected "
+                f"{failure['expected']}, got {failure['got']}"
+            )
+        return 0
+
+    print("VERDICT    cosmetic — the engine still reproduces every vector")
+    if not args.adopt:
+        print()
+        print("  Run again with --preview --adopt to apply it.")
+        return 0
+
+    print()
+    print("ADOPT      not implemented yet; staging is left in place for inspection")
+    print(f"  {refresh_mod.STAGING}")
+    return 0
+
+
+# The families worth testing first at launch, in priority order. Animation
+# quality cannot be known before the game ships, so this is where to start.
+SHORTLIST = (
+    "Dribble Style",
+    "Layup Style",
+    "Two Foot Moving Dunks - Contact Dunks",
+    "One Foot Moving Dunks - Contact Dunks",
+    "Signature Dunks - Players",
+    "Signature Size-Up",
+    "Behind the Back",
+    "Crossover",
+    "Dribble Pull-Up",
+    "Post Fade",
+)
+
+
+def _rate(args):
+    if not (args.validate or args.shortlist):
+        print("error: pick a mode — --validate or --shortlist")
+        return 2
+
+    if args.validate:
+        table = ratings_mod.all_ratings()
+        problems = ratings_mod.validate(table)
+        if problems:
+            print(f"INVALID    {len(problems)} problems in data/ratings.json")
+            for problem in problems:
+                print(f"  {problem}")
+            return 0
+        print(f"VALID      {len(table)} packages rated")
+        if not table:
+            print()
+            print(
+                "  Nothing rated yet. Animation quality cannot be known before "
+                "the game ships — run with --shortlist for where to start."
+            )
+        return 0
+
+    print("TESTING SHORTLIST — families worth judging first at launch")
+    print()
+    rated = ratings_mod.all_ratings()
+    for family in SHORTLIST:
+        rows = [r for r in animations_mod.packages() if r["family"] == family]
+        done = sum(
+            1
+            for r in rows
+            if ratings_mod.key_for(r["name"], r["family"]) in rated
+        )
+        print(f"  {family:<40} {done}/{len(rows)} rated")
+    print()
+    print("  Add entries to data/ratings.json keyed 'Family::Name', for example:")
+    print('    "Dribble Style::Kyrie Irving": {"speed": 9, "tier": "S"}')
+    return 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="buildlab")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -338,6 +460,17 @@ def main(argv=None):
     cr.add_argument("--values", required=True, help="21 comma-separated ratings")
     cr.add_argument("--claim", action="append", help="name=tier to check, repeatable")
     cr.set_defaults(func=_critique)
+
+    rf = sub.add_parser("refresh", help="check for and preview new upstream data")
+    rf.add_argument("--check", action="store_true", help="compare pins only")
+    rf.add_argument("--preview", action="store_true", help="fetch and diff")
+    rf.add_argument("--adopt", action="store_true", help="apply, with --preview")
+    rf.set_defaults(func=_refresh)
+
+    rt = sub.add_parser("rate", help="check and plan your animation ratings")
+    rt.add_argument("--validate", action="store_true", help="check ratings.json")
+    rt.add_argument("--shortlist", action="store_true", help="what to test first")
+    rt.set_defaults(func=_rate)
 
     args = parser.parse_args(argv)
     return args.func(args)

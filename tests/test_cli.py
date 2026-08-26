@@ -223,5 +223,45 @@ class TestCritiqueCommand(unittest.TestCase):
         self.assertIn("ABOVE THE CEILING", out.upper())
 
 
+class TestRefreshCommand(unittest.TestCase):
+    def run_cli(self, argv):
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            code = cli.main(argv)
+        return code, buffer.getvalue()
+
+    def test_refresh_requires_a_mode(self):
+        code, out = self.run_cli(["refresh"])
+        self.assertEqual(code, 2)
+        self.assertIn("--check", out)
+
+    def test_refresh_rejects_adopt_without_preview(self):
+        code, out = self.run_cli(["refresh", "--adopt"])
+        self.assertEqual(code, 2)
+        self.assertIn("--preview", out)
+
+
+class TestRateCommand(unittest.TestCase):
+    def run_cli(self, argv):
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            code = cli.main(argv)
+        return code, buffer.getvalue()
+
+    def test_rate_validates_the_file(self):
+        code, out = self.run_cli(["rate", "--validate"])
+        self.assertEqual(code, 0)
+        self.assertIn("VALID", out.upper())
+
+    def test_rate_lists_the_testing_shortlist(self):
+        code, out = self.run_cli(["rate", "--shortlist"])
+        self.assertEqual(code, 0)
+        self.assertIn("Dribble Style", out)
+
+    def test_rate_requires_a_mode(self):
+        code, out = self.run_cli(["rate"])
+        self.assertEqual(code, 2)
+
+
 if __name__ == "__main__":
     unittest.main()

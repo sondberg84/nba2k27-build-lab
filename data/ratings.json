@@ -1,0 +1,14 @@
+{
+  "_meta": {
+    "describes": "Hand-authored animation quality scores. Not derived from any data source.",
+    "scale": "1 to 10, higher is better. Omit a field you have not judged.",
+    "fields": {
+      "speed": "how quickly the animation completes",
+      "block_resistance": "how well it avoids getting blocked",
+      "tier": "S, A, B, C or D overall",
+      "notes": "free text"
+    },
+    "never_written_by": "tools/vendor.py, tools/vendor_local.py, buildlab/refresh.py"
+  },
+  "ratings": {}
+}
