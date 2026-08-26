@@ -1,7 +1,6 @@
 """Badge definitions, height eligibility and tier requirements."""
 
 import functools
-import json
 
 from buildlab import sources
 
@@ -21,14 +20,9 @@ DISCIPLINE_ORDER = (
 UNRESTRICTED = [63, 91]
 
 
-def _rows(rel):
-    payload = json.loads(sources.path_for(rel).read_text(encoding="utf-8"))
-    return payload["data"] if isinstance(payload, dict) else payload
-
-
 @functools.lru_cache(maxsize=1)
 def definitions():
-    return _rows("badges/definitions.json")
+    return sources.rows_for("badges/definitions.json")
 
 
 @functools.lru_cache(maxsize=1)
@@ -77,7 +71,7 @@ TIERS = ("bronze", "silver", "gold", "hall_of_fame")
 
 @functools.lru_cache(maxsize=1)
 def tier_requirements():
-    return _rows("badges/tier_requirements.json")
+    return sources.rows_for("badges/tier_requirements.json")
 
 
 @functools.lru_cache(maxsize=1)

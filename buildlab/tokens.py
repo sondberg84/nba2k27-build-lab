@@ -1,7 +1,6 @@
 """Badge token costs, per-attribute contributions, and build-level estimates."""
 
 import functools
-import json
 
 from buildlab import badges, sources
 
@@ -11,18 +10,13 @@ from buildlab import badges, sources
 UNREACHABLE_TIERS = ("legend",)
 
 
-def _rows(rel):
-    payload = json.loads(sources.path_for(rel).read_text(encoding="utf-8"))
-    return payload["data"] if isinstance(payload, dict) else payload
-
-
 def is_unreachable_tier(tier):
     return tier in UNREACHABLE_TIERS
 
 
 @functools.lru_cache(maxsize=1)
 def costs():
-    return _rows("badges/token_costs.json")
+    return sources.rows_for("badges/token_costs.json")
 
 
 @functools.lru_cache(maxsize=1)
@@ -83,7 +77,7 @@ def cost_of_loadout(loadout, height_inches, cumulative=False):
 
 @functools.lru_cache(maxsize=1)
 def contributions():
-    return _rows("badges/token_contributions.json")
+    return sources.rows_for("badges/token_contributions.json")
 
 
 @functools.lru_cache(maxsize=1)

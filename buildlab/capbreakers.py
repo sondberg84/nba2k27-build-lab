@@ -1,7 +1,6 @@
 """Cap breaker gains: how much each of the five applications raises an attribute."""
 
 import functools
-import json
 
 from buildlab import sources
 
@@ -22,14 +21,9 @@ OUT_OF_RANGE_NOTE = (
 )
 
 
-def _rows(rel):
-    payload = json.loads(sources.path_for(rel).read_text(encoding="utf-8"))
-    return payload["data"] if isinstance(payload, dict) else payload
-
-
 @functools.lru_cache(maxsize=1)
 def gains():
-    return _rows("cap_breakers/gains_by_rating.json")
+    return sources.rows_for("cap_breakers/gains_by_rating.json")
 
 
 @functools.lru_cache(maxsize=1)

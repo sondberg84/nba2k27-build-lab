@@ -107,6 +107,24 @@ class TestTierRequirements(unittest.TestCase):
         both[second["attribute"]] = second["minimum"]
         self.assertTrue(badges.meets(row["badge"], row["tier"], both))
 
+    def test_unpluckable_hall_of_fame_is_ball_handle_only(self):
+        # post_control >= 100 is unreachable on a 99 cap, so the OR's first
+        # branch is permanently dead and this tier is ball_handle-only.
+        # Corroborated by the project's NBA2KLab notes, which render the
+        # unreachable minimum as an em dash.
+        requirements = badges.requirements_for(30, "hall_of_fame")
+        minimums = {r["name"]: r["minimum"] for r in requirements}
+        self.assertEqual(minimums["post_control"], 100)
+        self.assertEqual(minimums["ball_handle"], 97)
+
+        by_ball_handle = [0] * 21
+        by_ball_handle[9] = 97
+        self.assertTrue(badges.meets(30, "hall_of_fame", by_ball_handle))
+
+        by_post_control = [0] * 21
+        by_post_control[4] = 99
+        self.assertFalse(badges.meets(30, "hall_of_fame", by_post_control))
+
     def test_legend_has_no_attribute_path(self):
         # Legend never appears in tier_requirements: it cannot be reached by
         # raising attributes, only through a Max Plus 2 fuse slot.
