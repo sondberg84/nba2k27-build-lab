@@ -94,13 +94,42 @@ def _contribution_index():
     }
 
 
+# Rows exist for all 20 legal heights, but every token value at height 82 and
+# above is zero while the slots field in the same rows stays populated. Across
+# 69-81 the count of nonzero-token rows climbs smoothly (689 -> 747) and then
+# falls to exactly 0 at 82. That discontinuity is the signature of a capture
+# that stopped recording tokens, not of a game rule: it would mean every build
+# 6'10" and taller earns no badge tokens from any attribute at any rating.
+# Upstream commit 957d009 is the latest and its README does not mention this.
+# Treat 82+ as MISSING data, never as zero.
+TOKEN_DATA_HEIGHTS = tuple(range(69, 82))
+
+
+def has_token_data(height_inches):
+    """Whether token contribution data is trustworthy at this height."""
+    return height_inches in TOKEN_DATA_HEIGHTS
+
+
 def contribution(height_inches, attribute, rating):
     """Tokens earned per discipline from ONE attribute at this rating.
 
     Measured with every other attribute at the 25 floor. Six values in
     badges.DISCIPLINE_ORDER. This is a measured fact; see estimate_earned for
     the build-level extrapolation and its caveat.
+
+    Only covers heights 69-81. Rows exist for 82-88 too, but every token
+    value there is zero while slots keeps working in the same rows -- a
+    capture defect, not a real height effect -- so that range is refused
+    rather than answered with a false zero.
     """
+    if not has_token_data(height_inches) and 82 <= height_inches <= 88:
+        raise KeyError(
+            f"token contribution data is not trustworthy at height "
+            f"{height_inches}: rows exist but every token value is zero from "
+            "height 82 up, while slots stay populated. Treated as missing, not "
+            f"as zero. Trustworthy heights are {TOKEN_DATA_HEIGHTS[0]}-"
+            f"{TOKEN_DATA_HEIGHTS[-1]}."
+        )
     index = _contribution_index()
     key = (height_inches, attribute, rating)
     if key not in index:

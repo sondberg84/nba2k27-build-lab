@@ -122,6 +122,42 @@ class TestContributions(unittest.TestCase):
         with self.assertRaises(KeyError):
             tokens.contribution(height_inches=60, attribute=0, rating=25)
 
+    def test_token_data_is_trustworthy_only_below_eighty_two(self):
+        self.assertTrue(tokens.has_token_data(81))
+        self.assertFalse(tokens.has_token_data(82))
+        self.assertEqual(tokens.TOKEN_DATA_HEIGHTS[0], 69)
+        self.assertEqual(tokens.TOKEN_DATA_HEIGHTS[-1], 81)
+
+    def test_contribution_refuses_the_untrusted_height_range(self):
+        # Rows exist at 82+ but every token value is zero. Returning that as a
+        # real answer would tell every centre they earn no badge tokens.
+        with self.assertRaises(KeyError) as caught:
+            tokens.contribution(height_inches=82, attribute=6, rating=99)
+        self.assertIn("not trustworthy", str(caught.exception))
+
+    def test_the_cliff_is_real_in_the_shipped_data(self):
+        # Pins the defect itself, so a future data refresh that fixes it fails
+        # here and tells us to widen TOKEN_DATA_HEIGHTS.
+        rows = tokens.contributions()
+        low = [r for r in rows if 69 <= r["height_inches"] <= 81 and any(r["tokens"])]
+        high = [r for r in rows if r["height_inches"] >= 82 and any(r["tokens"])]
+        self.assertGreater(len(low), 0)
+        self.assertEqual(len(high), 0)
+        # slots keep working at those same heights, which is why this reads as
+        # a capture gap rather than a game rule.
+        slots_high = [r for r in rows if r["height_inches"] >= 82 and any(r["slots"])]
+        self.assertGreater(len(slots_high), 0)
+
+    def test_free_throw_earns_nothing_anywhere(self):
+        # The only attribute that never earns a token at any rating or height.
+        # It is also the only attribute exempt from the overall-rating scale.
+        for height in tokens.TOKEN_DATA_HEIGHTS:
+            for rating in (25, 75, 99):
+                with self.subTest(height=height, rating=rating):
+                    self.assertEqual(
+                        tokens.contribution(height, 7, rating), (0, 0, 0, 0, 0, 0)
+                    )
+
 
 if __name__ == "__main__":
     unittest.main()
