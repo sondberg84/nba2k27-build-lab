@@ -59,6 +59,13 @@ class TestHardening(unittest.TestCase):
         self.assertEqual(len(commit), 40)
         self.assertTrue(all(c in "0123456789abcdef" for c in commit))
 
+    def test_the_manifest_keeps_both_sources(self):
+        # tools/vendor.py used to rebuild `sources` from scratch, silently
+        # dropping the user-local-documents entry that vendor_local.py adds.
+        names = {s["name"] for s in sources.load()["sources"]}
+        self.assertIn("nba2k27-builder-dataset", names)
+        self.assertIn("user-local-documents", names)
+
 
 if __name__ == "__main__":
     unittest.main()

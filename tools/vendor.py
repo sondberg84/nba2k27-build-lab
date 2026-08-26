@@ -43,17 +43,25 @@ def main():
         }
         print(f"{rel}  {len(payload)} bytes")
 
-    manifest = {
-        "sources": [
-            {
-                "name": "nba2k27-builder-dataset",
-                "url": f"https://github.com/{REPO}",
-                "commit": COMMIT,
-                "files": entries,
-            }
-        ]
-    }
-    (ROOT / "data" / "SOURCES.json").write_text(
+    manifest_path = ROOT / "data" / "SOURCES.json"
+    if manifest_path.exists():
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    else:
+        manifest = {"sources": []}
+
+    manifest["sources"] = [
+        s for s in manifest["sources"] if s.get("name") != "nba2k27-builder-dataset"
+    ]
+    manifest["sources"].insert(
+        0,
+        {
+            "name": "nba2k27-builder-dataset",
+            "url": f"https://github.com/{REPO}",
+            "commit": COMMIT,
+            "files": entries,
+        },
+    )
+    manifest_path.write_text(
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n"
     )
     print(f"wrote manifest with {len(entries)} files")
