@@ -122,8 +122,13 @@ Heights are written `feet-inches`: `5-9`, `6-3`, `6-11`, `7-4`.
 
 **Attributes constrain each other.** Speed With Ball can never exceed Speed by even a point,
 and is also capped at Ball Handle + 5 and Agility + 15. So a build advertised as needing
-"94 Speed With Ball" actually needs Speed 94, Ball Handle 89 and Agility 79 as well. Four
-attributes, not one.
+"94 Speed With Ball" also needs Speed 94, Ball Handle 89 and Agility 79. And those are only
+the *direct* links — the constraints chain onward, so the real cost is **twelve attributes
+at 6'2" and twenty at 7'0"**. Run `solve --attribute speed_with_ball=94` to see the whole bill.
+
+**A fast centre does not exist above 6'9".** Agility is capped at 68 at 7'0". Fast bigs live
+at 6'7"–6'9", which is also the last height before roughly half the animation packages
+disappear.
 
 **An animation's height range is not the real limit.** Kyrie Irving's dribble style is
 listed as 5'9"–6'4", but it needs 94 Speed With Ball and no body above 6'2" can reach that.
