@@ -37,10 +37,15 @@ def _eval(args):
         print(f"error: expected 21 attribute values, got {len(values)}")
         return 2
     height = parse_height(args.height)
+    # Compute before printing anything. Otherwise a fresh clone with no game
+    # data emits a header and then an error, which reads as a half-success.
+    overall = ovr.overall(height, values)
+    archetype = ovr.archetype(height, values)
+    detailed = ovr.detailed(height, values)
     print(f"HEIGHT     {args.height}  ({height} in)")
-    print(f"OVERALL    {ovr.overall(height, values)}")
-    print(f"ARCHETYPE  {ovr.archetype(height, values)}")
-    print(f"DETAILED   {ovr.detailed(height, values):.6f}")
+    print(f"OVERALL    {overall}")
+    print(f"ARCHETYPE  {archetype}")
+    print(f"DETAILED   {detailed:.6f}")
     print()
     for name, value in zip(reference.attribute_names(), values):
         print(f"  {name:<20} {value}")
