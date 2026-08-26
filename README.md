@@ -20,8 +20,9 @@ token tables, cap breakers, and the 256 golden vectors this engine is verified a
 copy is vendored in `data/engine/`, pinned to commit `957d0095`.
 
 **NBA2KLab** — the 1,814 animation requirement rows in `data/local/`, gathered by testing
-rather than extraction. There is no machine-readable source for these; someone sat down and
-recorded them. Everything the `animations`, `ladder` and `reachability` commands do rests on
+rather than extraction. These **are** included in this repository, because there is nowhere
+else to obtain them: someone sat down and recorded them, and there is no machine-readable
+upstream to point you at. Everything the `animations`, `ladder` and `reachability` commands do rests on
 that work.
 
 If you find this useful, the credit belongs upstream. All this repository adds is the
@@ -33,9 +34,24 @@ of it.
 
 ---
 
+## Setup, once
+
+The upstream dataset is **not redistributed here** — you fetch it from its source:
+
+```bash
+python tools/vendor.py
+```
+
+That downloads the 13 data files from lightmatmul's repository at the exact pinned commit
+and hash-verifies them. It takes a few seconds and you never need to run it again unless
+the data changes.
+
+The animation requirements in `data/local/` **are** included, because there is nowhere else
+to get them — they were gathered by hand and have no machine-readable upstream.
+
 ## Quick start
 
-Open a terminal in this folder and run:
+Then run:
 
 ```bash
 python -m buildlab.cli serve

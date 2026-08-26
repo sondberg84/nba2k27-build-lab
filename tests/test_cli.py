@@ -317,5 +317,31 @@ class TestDiffCommand(unittest.TestCase):
         self.assertIn("IMPOSSIBLE", out.upper())
 
 
+class TestMissingDataMessage(unittest.TestCase):
+    def test_a_missing_data_file_gives_advice_not_a_traceback(self):
+        # The upstream dataset is fetched, not shipped, so a fresh clone has
+        # none of it. That is the most likely first-run failure and it must
+        # explain itself rather than raise.
+        from buildlab import cli as cli_mod, sources
+
+        def boom(args):
+            raise sources.SourceError("missing vendored file x; run tools/vendor.py")
+
+        buffer = io.StringIO()
+        original = cli_mod._eval
+        try:
+            cli_mod._eval = boom
+            with redirect_stdout(buffer):
+                code = cli_mod.main(
+                    ["eval", "--height", "6-3", "--values", ",".join(["70"] * 21)]
+                )
+        finally:
+            cli_mod._eval = original
+        out = buffer.getvalue()
+        self.assertEqual(code, 2)
+        self.assertIn("tools/vendor.py", out)
+        self.assertIn("not set up yet", out)
+
+
 if __name__ == "__main__":
     unittest.main()

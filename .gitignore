@@ -1,2 +1,8 @@
 __pycache__/
 *.pyc
+
+# The upstream dataset is fetched from its source, not redistributed here.
+# Run: python tools/vendor.py
+data/engine/
+data/staging/
+data/snapshots/

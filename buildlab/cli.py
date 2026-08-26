@@ -594,7 +594,21 @@ def main(argv=None):
     df.set_defaults(func=_diff)
 
     args = parser.parse_args(argv)
-    return args.func(args)
+    try:
+        return args.func(args)
+    except sources.SourceError as error:
+        # The game data is fetched from upstream rather than shipped, so a
+        # fresh clone has none of it. That is the single most likely first-run
+        # failure, and a stack trace is a poor way to learn about it.
+        print("error: the game data is not set up yet")
+        print()
+        print(f"  {error}")
+        print()
+        print("  This project does not redistribute the upstream dataset. Run")
+        print("  this once to fetch it from its source:")
+        print()
+        print("    python tools/vendor.py")
+        return 2
 
 
 if __name__ == "__main__":
