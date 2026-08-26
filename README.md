@@ -8,6 +8,31 @@ have Python, you can run it.
 
 ---
 
+## Where the data comes from
+
+**This project computes; it did not gather.** Two other people's work makes it possible, and
+neither is mine:
+
+**[lightmatmul/nba2k27-builder-dataset](https://github.com/lightmatmul/nba2k27-builder-dataset)**
+— the game's own rules data, captured by calling NBA 2K HQ's native builder functions
+directly rather than estimating. Attribute weights, body multipliers, badge requirements,
+token tables, cap breakers, and the 256 golden vectors this engine is verified against. A
+copy is vendored in `data/engine/`, pinned to commit `957d0095`.
+
+**NBA2KLab** — the 1,814 animation requirement rows in `data/local/`, gathered by testing
+rather than extraction. There is no machine-readable source for these; someone sat down and
+recorded them. Everything the `animations`, `ladder` and `reachability` commands do rests on
+that work.
+
+If you find this useful, the credit belongs upstream. All this repository adds is the
+arithmetic on top — reconstructing the rating formula from the tuning tables, and joining
+the two datasets so they can answer questions neither can alone.
+
+The data is **pre-release Community Day capture, dated 2026-08-22**, and 2K can change any
+of it.
+
+---
+
 ## Quick start
 
 Open a terminal in this folder and run:
