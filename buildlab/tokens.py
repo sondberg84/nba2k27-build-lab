@@ -139,3 +139,37 @@ def contribution(height_inches, attribute, rating):
             "ratings 25-99"
         )
     return index[key]
+
+
+ADDITIVITY_BASIS = (
+    "Summing the 21 per-attribute contributions. The upstream README states "
+    "the token function is additive across attributes and that summing a "
+    "build's 21 rows gives its exact token budget, verified there against "
+    "2,048 native vectors. Those vectors are not shipped, so this cannot be "
+    "re-checked from the vendored files: locally_verified is False for that "
+    "reason, not because the result is doubted."
+)
+
+
+def earned(values, height_inches):
+    """Badge tokens a build earns, per discipline.
+
+    Returns a dict with `per_discipline` (6 ints in badges.DISCIPLINE_ORDER),
+    `total`, `locally_verified` (always False, see ADDITIVITY_BASIS) and
+    `basis`.
+
+    Raises for heights 82 and above: token data is not trustworthy there, and
+    silently totalling zero would report that tall builds earn no tokens.
+    """
+    if len(values) != 21:
+        raise ValueError(f"expected 21 attribute values, got {len(values)}")
+    totals = [0] * 6
+    for attribute, rating in enumerate(values):
+        got = contribution(height_inches, attribute, rating)
+        totals = [a + b for a, b in zip(totals, got)]
+    return {
+        "per_discipline": tuple(totals),
+        "total": sum(totals),
+        "locally_verified": False,
+        "basis": ADDITIVITY_BASIS,
+    }

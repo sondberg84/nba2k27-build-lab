@@ -159,5 +159,69 @@ class TestContributions(unittest.TestCase):
                     )
 
 
+class TestEarnedTokens(unittest.TestCase):
+    def test_returns_six_disciplines_a_total_and_a_basis(self):
+        result = tokens.earned([50] * 21, height_inches=75)
+        self.assertEqual(len(result["per_discipline"]), 6)
+        self.assertIsInstance(result["total"], int)
+        self.assertFalse(result["locally_verified"])
+        self.assertIn("additive", result["basis"].lower())
+
+    def test_floor_build_earns_nothing(self):
+        result = tokens.earned([25] * 21, height_inches=75)
+        self.assertEqual(result["per_discipline"], (0, 0, 0, 0, 0, 0))
+        self.assertEqual(result["total"], 0)
+
+    def test_maxed_build_earns_more_than_a_floor_build(self):
+        low = tokens.earned([25] * 21, height_inches=75)
+        high = tokens.earned([99] * 21, height_inches=75)
+        self.assertGreater(high["total"], low["total"])
+
+    def test_total_is_the_sum_of_its_parts(self):
+        values = [40] * 21
+        expected = [0] * 6
+        for attribute, rating in enumerate(values):
+            got = tokens.contribution(
+                height_inches=75, attribute=attribute, rating=rating
+            )
+            expected = [a + b for a, b in zip(expected, got)]
+        result = tokens.earned(values, height_inches=75)
+        self.assertEqual(result["per_discipline"], tuple(expected))
+        self.assertEqual(result["total"], sum(expected))
+
+    def test_rejects_a_wrong_length_vector(self):
+        with self.assertRaises(ValueError):
+            tokens.earned([50] * 20, height_inches=75)
+
+    def test_refuses_the_untrusted_height_range(self):
+        # 82+ would silently total zero, telling every centre they earn no
+        # badge tokens. Must raise instead.
+        with self.assertRaises(KeyError):
+            tokens.earned([99] * 21, height_inches=82)
+
+    def test_free_throw_contributes_nothing_to_the_total(self):
+        # Attribute 7 earns nothing anywhere, so moving it must not change
+        # the total.
+        low = list(range(25, 46))
+        high = list(low)
+        high[7] = 99
+        self.assertEqual(
+            tokens.earned(low, height_inches=75)["total"],
+            tokens.earned(high, height_inches=75)["total"],
+        )
+
+    def test_per_discipline_is_ordered_like_badges_discipline_order(self):
+        # A build with only three_point raised should show its tokens in the
+        # shooting slot, which is index 1.
+        values = [25] * 21
+        values[6] = 99
+        result = tokens.earned(values, height_inches=75)
+        shooting = badges.DISCIPLINE_ORDER.index("shooting")
+        self.assertGreater(result["per_discipline"][shooting], 0)
+        self.assertEqual(
+            sum(result["per_discipline"]), result["per_discipline"][shooting]
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
