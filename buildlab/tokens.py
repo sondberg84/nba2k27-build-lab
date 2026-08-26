@@ -79,3 +79,34 @@ def cost_of_loadout(loadout, height_inches, cumulative=False):
         else:
             total += cost_for(badge_id, tier, height_inches)
     return total
+
+
+@functools.lru_cache(maxsize=1)
+def contributions():
+    return _rows("badges/token_contributions.json")
+
+
+@functools.lru_cache(maxsize=1)
+def _contribution_index():
+    return {
+        (r["height_inches"], r["attribute"], r["rating"]): tuple(r["tokens"])
+        for r in contributions()
+    }
+
+
+def contribution(height_inches, attribute, rating):
+    """Tokens earned per discipline from ONE attribute at this rating.
+
+    Measured with every other attribute at the 25 floor. Six values in
+    badges.DISCIPLINE_ORDER. This is a measured fact; see estimate_earned for
+    the build-level extrapolation and its caveat.
+    """
+    index = _contribution_index()
+    key = (height_inches, attribute, rating)
+    if key not in index:
+        raise KeyError(
+            f"no token contribution for height {height_inches}, attribute "
+            f"{attribute}, rating {rating}; heights 69-88, attributes 0-20, "
+            "ratings 25-99"
+        )
+    return index[key]

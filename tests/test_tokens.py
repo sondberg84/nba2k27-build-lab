@@ -79,5 +79,49 @@ class TestTokenCosts(unittest.TestCase):
             tokens.cost_of_loadout({17: "legend"}, 75, cumulative=True)
 
 
+class TestContributions(unittest.TestCase):
+    def test_thirty_one_thousand_five_hundred_rows(self):
+        # 20 heights x 21 attributes x 75 ratings
+        self.assertEqual(len(tokens.contributions()), 31500)
+
+    def test_contribution_is_six_values_in_discipline_order(self):
+        got = tokens.contribution(height_inches=69, attribute=0, rating=25)
+        self.assertEqual(len(got), 6)
+        self.assertEqual(len(badges.DISCIPLINE_ORDER), 6)
+
+    def test_floor_rating_earns_nothing(self):
+        self.assertEqual(
+            tokens.contribution(height_inches=69, attribute=0, rating=25),
+            (0, 0, 0, 0, 0, 0),
+        )
+
+    def test_a_high_rating_earns_something(self):
+        got = tokens.contribution(height_inches=69, attribute=0, rating=99)
+        self.assertGreater(sum(got), 0)
+
+    def test_contributions_never_decrease_with_rating(self):
+        # Monotonic in rating: raising an attribute must never reduce tokens.
+        for attribute in range(21):
+            with self.subTest(attribute=attribute):
+                previous = (0,) * 6
+                for rating in range(25, 100):
+                    got = tokens.contribution(
+                        height_inches=75, attribute=attribute, rating=rating
+                    )
+                    for before, after in zip(previous, got):
+                        self.assertGreaterEqual(after, before)
+                    previous = got
+
+    def test_ratings_cover_25_to_99(self):
+        ratings = {r["rating"] for r in tokens.contributions()}
+        self.assertEqual(min(ratings), 25)
+        self.assertEqual(max(ratings), 99)
+        self.assertEqual(len(ratings), 75)
+
+    def test_unknown_lookup_raises(self):
+        with self.assertRaises(KeyError):
+            tokens.contribution(height_inches=60, attribute=0, rating=25)
+
+
 if __name__ == "__main__":
     unittest.main()
