@@ -6,7 +6,7 @@ import pathlib
 import urllib.request
 
 REPO = "lightmatmul/nba2k27-builder-dataset"
-COMMIT = "957d009"
+COMMIT = "957d0095182702e34f671e81ecb81efa9def9cb3"
 FILES = [
     "reference/attributes.json",
     "reference/enums.json",
@@ -54,7 +54,7 @@ def main():
         ]
     }
     (ROOT / "data" / "SOURCES.json").write_text(
-        json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+        json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n"
     )
     print(f"wrote manifest with {len(entries)} files")
 
