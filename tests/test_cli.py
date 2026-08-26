@@ -76,5 +76,49 @@ class TestBadgesCommand(unittest.TestCase):
         self.assertIn("tokens", out.lower())
 
 
+class TestAnimationsCommand(unittest.TestCase):
+    def run_cli(self, argv):
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            code = cli.main(argv)
+        return code, buffer.getvalue()
+
+    def test_animations_lists_available_packages(self):
+        values = ",".join(["99"] * 21)
+        code, out = self.run_cli(["animations", "--height", "6-3", "--values", values])
+        self.assertEqual(code, 0)
+        self.assertIn("AVAILABLE", out)
+
+    def test_animations_filters_by_family(self):
+        values = ",".join(["99"] * 21)
+        code, out = self.run_cli(
+            [
+                "animations", "--height", "6-2", "--values", values,
+                "--family", "Dribble Style",
+            ]
+        )
+        self.assertEqual(code, 0)
+        self.assertIn("Dribble Style", out)
+
+    def test_animations_rejects_wrong_attribute_count(self):
+        code, out = self.run_cli(["animations", "--height", "6-3", "--values", "70,70"])
+        self.assertEqual(code, 2)
+        self.assertIn("21", out)
+
+    def test_ladder_shows_thresholds(self):
+        code, out = self.run_cli(
+            ["ladder", "--height", "6-4", "--attribute", "ball_handle"]
+        )
+        self.assertEqual(code, 0)
+        self.assertIn("LADDER", out)
+        self.assertIn("ball_handle", out)
+
+    def test_ladder_rejects_an_unknown_attribute(self):
+        code, out = self.run_cli(
+            ["ladder", "--height", "6-4", "--attribute", "nonsense"]
+        )
+        self.assertEqual(code, 2)
+
+
 if __name__ == "__main__":
     unittest.main()

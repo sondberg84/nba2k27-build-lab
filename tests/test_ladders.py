@@ -55,18 +55,38 @@ class TestFullCost(unittest.TestCase):
         # attribute rule at every legal build height (verified by scanning
         # buckets 5-24, i.e. 69-88 inches) - there is no attribute that is
         # ever truly rule-free. What "unlinked" means in practice is a target
-        # low enough that none of its rules' max_delta cushions are exceeded:
-        # free_throw's rules here are <= mid_range + 25 and <= three_point +
-        # 20, so a target of 20 needs neither partner to move (20 - 25 and
-        # 20 - 20 are both <= 0) and the request costs only itself.
-        cost = ladders.full_cost_of({"free_throw": 20}, height_inches=75)
-        self.assertEqual(cost, {"free_throw": 20})
+        # whose propagated pressure on every partner stays at or below
+        # ATTRIBUTE_FLOOR, so nothing but the target itself survives the
+        # floor filter: free_throw's rules here are <= mid_range + 25 and
+        # <= three_point + 20, so a target of 26 implies mid_range >= 1 and
+        # three_point >= 6, both already satisfied by an untouched build and
+        # dropped from the result, leaving only free_throw itself.
+        cost = ladders.full_cost_of({"free_throw": 26}, height_inches=75)
+        self.assertEqual(cost, {"free_throw": 26})
 
     def test_full_cost_respects_an_existing_higher_value(self):
         cost = ladders.full_cost_of(
             {"speed_with_ball": 94, "speed": 99}, height_inches=74
         )
         self.assertEqual(cost["speed"], 99)
+
+    def test_nothing_at_or_below_the_floor_is_reported(self):
+        # A build starts with every attribute at 25, so an implied minimum of
+        # 24 or 14 is already satisfied and is not a cost.
+        cost = ladders.full_cost_of({"speed_with_ball": 94}, height_inches=74)
+        for attribute, minimum in cost.items():
+            with self.subTest(attribute=attribute):
+                self.assertGreater(minimum, ladders.ATTRIBUTE_FLOOR)
+
+    def test_speed_with_ball_forces_twelve_attributes(self):
+        # The fixed point reaches 20 attributes, but only 12 sit above the
+        # floor and therefore actually cost anything.
+        cost = ladders.full_cost_of({"speed_with_ball": 94}, height_inches=74)
+        self.assertEqual(len(cost), 12)
+        self.assertEqual(cost["speed"], 94)
+        self.assertEqual(cost["ball_handle"], 89)
+        self.assertEqual(cost["agility"], 79)
+        self.assertEqual(cost["driving_layup"], 74)
 
 
 if __name__ == "__main__":

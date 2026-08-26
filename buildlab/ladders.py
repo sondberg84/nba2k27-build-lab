@@ -4,6 +4,11 @@ import functools
 
 from buildlab import animations, badges, constraints, reference, tables
 
+# Every attribute starts at 25: the tuning export states it as
+# AttributePreset[INITIAL].Value[<attribute>]. An implied minimum at or below
+# that is already satisfied by an untouched build and is not a cost.
+ATTRIBUTE_FLOOR = 25
+
 
 def _attribute_index(attribute):
     names = reference.attribute_names()
@@ -88,10 +93,17 @@ def dead_points(attribute, height_inches, rating):
 def full_cost_of(targets, height_inches):
     """Expand attribute targets to include everything they force.
 
-    Linked attribute constraints mean an attribute cannot be raised alone: at
-    every height `speed_with_ball` is capped at `speed + 0`, `ball_handle + 5`
-    and `agility + 15`, so asking for 94 speed with ball really costs four
-    attributes. Returns the full set of minimums implied.
+    Linked attribute constraints mean an attribute cannot be raised alone. The
+    constraint graph is fully connected — every attribute is capped relative to
+    at least one other at every legal height — so a single target propagates
+    transitively until it reaches a fixed point.
+
+    Only implied minimums above ATTRIBUTE_FLOOR are returned. A build starts
+    with every attribute at 25, so an implied minimum at or below that costs
+    nothing and reporting it would overstate the price.
+
+    Asking for 94 speed with ball at 6'2" really requires twelve attributes,
+    led by speed 94, ball handle 89 and agility 79.
     """
     bucket = tables.bucket_for_inches(height_inches)
     to_tuning = reference.TUNING_NAME
@@ -111,4 +123,4 @@ def full_cost_of(targets, height_inches):
                 if needed > resolved.get(partner, 0):
                     resolved[partner] = needed
                     changed = True
-    return {k: v for k, v in resolved.items() if v > 0}
+    return {k: v for k, v in resolved.items() if v > ATTRIBUTE_FLOOR}

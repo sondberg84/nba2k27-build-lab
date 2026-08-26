@@ -2,7 +2,14 @@
 
 import argparse
 
-from buildlab import badges as badges_mod, ovr, reference, tokens
+from buildlab import (
+    animations as animations_mod,
+    badges as badges_mod,
+    ladders,
+    ovr,
+    reference,
+    tokens,
+)
 
 
 def parse_height(text):
@@ -74,6 +81,53 @@ def _badges(args):
     return 0
 
 
+def _animations(args):
+    values = [int(v) for v in args.values.split(",")]
+    if len(values) != 21:
+        print(f"error: expected 21 attribute values, got {len(values)}")
+        return 2
+    height = parse_height(args.height)
+    rows = animations_mod.available(values, height, family=args.family)
+    print(f"HEIGHT     {args.height}  ({height} in)")
+    print(f"AVAILABLE  {len(rows)} packages")
+    print()
+    by_family = {}
+    for row in rows:
+        by_family.setdefault(row["family"], []).append(row["name"])
+    for family in sorted(by_family):
+        print(f"  {family}:")
+        for name in sorted(by_family[family]):
+            print(f"    {name}")
+    return 0
+
+
+def _ladder(args):
+    height = parse_height(args.height)
+    try:
+        steps = ladders.ladder(args.attribute, height)
+    except KeyError as error:
+        print(f"error: {error}")
+        return 2
+    ceiling = ladders.max_ceiling(args.attribute, height)
+    print(f"LADDER  {args.attribute} at {args.height}  (ceiling {ceiling})")
+    print()
+    previous = None
+    for step in steps:
+        if previous is not None and step["rating"] - previous > 1:
+            gap = step["rating"] - previous - 1
+            print(f"        ({gap} point{'s' if gap > 1 else ''} buying nothing)")
+        unlocks = list(step["badges"]) + list(step["animations"])
+        head = unlocks[0]
+        if len(unlocks) > 4:
+            head = f"{unlocks[0]}  (+{len(unlocks) - 1} more)"
+            unlocks = unlocks[:1]
+        print(f"  {step['rating']:>3}  {head}")
+        for extra in unlocks[1:]:
+            print(f"       {extra}")
+        previous = step["rating"]
+    return 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="buildlab")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -85,6 +139,18 @@ def main(argv=None):
     bd.add_argument("--height", required=True, help="feet-inches, e.g. 6-3")
     bd.add_argument("--values", required=True, help="21 comma-separated ratings")
     bd.set_defaults(func=_badges)
+
+    an = sub.add_parser("animations", help="show animations a build can use")
+    an.add_argument("--height", required=True, help="feet-inches, e.g. 6-3")
+    an.add_argument("--values", required=True, help="21 comma-separated ratings")
+    an.add_argument("--family", default=None, help="restrict to one family")
+    an.set_defaults(func=_animations)
+
+    la = sub.add_parser("ladder", help="show what each point in an attribute buys")
+    la.add_argument("--height", required=True, help="feet-inches, e.g. 6-3")
+    la.add_argument("--attribute", required=True, help="builder attribute name")
+    la.set_defaults(func=_ladder)
+
     args = parser.parse_args(argv)
     return args.func(args)
 
