@@ -193,5 +193,47 @@ class TestAvailability(unittest.TestCase):
         self.assertGreater(counts[81], counts[82])
 
 
+class TestReachability(unittest.TestCase):
+    def test_kyrie_dribble_style_is_unreachable_above_six_two(self):
+        # Stated range is 5'9"-6'4", but it needs 94 speed_with_ball and the
+        # ceiling is 93 at 6'3" and 91 at 6'4" on every legal body.
+        self.assertTrue(
+            animations.reachable_at("Kyrie Irving", "Dribble Style", height_inches=74)
+        )
+        self.assertFalse(
+            animations.reachable_at("Kyrie Irving", "Dribble Style", height_inches=75)
+        )
+        self.assertFalse(
+            animations.reachable_at("Kyrie Irving", "Dribble Style", height_inches=76)
+        )
+
+    def test_reachable_range_narrows_the_stated_range(self):
+        stated = animations.requirements_of("Kyrie Irving", family="Dribble Style")
+        real = animations.reachable_range("Kyrie Irving", "Dribble Style")
+        self.assertEqual(stated["max_height"], 76)
+        self.assertEqual(real["max_height"], 74)
+        self.assertTrue(real["narrower_than_stated"])
+
+    def test_reachable_range_reports_the_binding_attribute(self):
+        real = animations.reachable_range("Kyrie Irving", "Dribble Style")
+        self.assertEqual(real["blocked_by"], "speed_with_ball")
+
+    def test_an_unrestricted_package_is_reachable_across_its_whole_range(self):
+        row = next(r for r in animations.packages() if not r["requirements"])
+        real = animations.reachable_range(row["name"], row["family"])
+        self.assertEqual(real["min_height"], row["min_height"])
+        self.assertEqual(real["max_height"], row["max_height"])
+        self.assertFalse(real["narrower_than_stated"])
+
+    def test_max_ceiling_at_matches_body_ceilings(self):
+        # The scan must agree with body.ceilings for a known body.
+        from buildlab import body
+
+        caps = body.ceilings(height=75, weight=198, wingspan=78)
+        self.assertGreaterEqual(
+            animations.max_ceiling_at(75, "speed_with_ball"), caps["speed_with_ball"]
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
