@@ -280,5 +280,42 @@ class TestServeCommand(unittest.TestCase):
         self.assertIn("serve", buffer.getvalue())
 
 
+class TestDiffCommand(unittest.TestCase):
+    def run_cli(self, argv):
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            code = cli.main(argv)
+        return code, buffer.getvalue()
+
+    def test_diff_reports_what_is_still_needed(self):
+        cur = ",".join(["70"] * 21)
+        tgt = ",".join(["80"] * 21)
+        code, out = self.run_cli(["diff", "--height", "6-10", "--values", cur, "--target", tgt])
+        self.assertEqual(code, 0)
+        self.assertIn("STILL NEEDED", out)
+        self.assertIn("TO GO", out)
+
+    def test_diff_says_nothing_needed_when_already_there(self):
+        same = ",".join(["70"] * 21)
+        code, out = self.run_cli(["diff", "--height", "6-10", "--values", same, "--target", same])
+        self.assertEqual(code, 0)
+        self.assertIn("nothing", out)
+
+    def test_diff_rejects_wrong_lengths(self):
+        code, out = self.run_cli(["diff", "--height", "6-10", "--values", "70,70", "--target", ",".join(["70"]*21)])
+        self.assertEqual(code, 2)
+        self.assertIn("21", out)
+
+    def test_diff_flags_an_impossible_target(self):
+        # speed_with_ball (index 10) tops out at 72 on any 6-10 body, so 95 is
+        # unreachable. standing_dunk would NOT work here - it reaches 99 at
+        # this height and is only constrained on short builds.
+        cur = ",".join(["70"] * 21)
+        t = ["70"] * 21; t[10] = "95"
+        code, out = self.run_cli(["diff", "--height", "6-10", "--values", cur, "--target", ",".join(t)])
+        self.assertEqual(code, 0)
+        self.assertIn("IMPOSSIBLE", out.upper())
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -150,6 +150,16 @@ writes it, and it is deliberately not hash-pinned so editing it doesn't look lik
 `--shortlist` shows the ten families worth testing first and how many you've rated.
 `--validate` checks your file for typos and out-of-range scores.
 
+### `diff` — how far off the plan am I?
+
+```bash
+python -m buildlab.cli diff --height 6-10 --values <current 21> --target <target 21>
+```
+
+The mid-build command. Screenshot your builder, hand me the numbers, and this says what
+is still needed, what is already past target, which badges you have not reached yet, and
+whether either build is impossible at that height.
+
 ### `reachability` — which animations lie about their height range
 
 ```bash
@@ -295,6 +305,7 @@ buildlab/     the engine
   goals       goal types and the floors they imply
   solver      cheapest build meeting a set of goals
   critique    evaluate a build somebody proposed
+  diff        compare a build in progress against a target
   refresh     check, stage and judge new upstream data
   ratings     your own animation quality scores
   cli         the commands above
