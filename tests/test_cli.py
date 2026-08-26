@@ -183,5 +183,45 @@ class TestSolveCommand(unittest.TestCase):
         self.assertIn("6-3", out)
 
 
+class TestCritiqueCommand(unittest.TestCase):
+    def run_cli(self, argv):
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            code = cli.main(argv)
+        return code, buffer.getvalue()
+
+    def test_critique_reports_overall_and_waste(self):
+        values = ",".join(["70"] * 21)
+        code, out = self.run_cli(["critique", "--height", "6-4", "--values", values])
+        self.assertEqual(code, 0)
+        self.assertIn("OVERALL", out)
+        self.assertIn("WASTED", out)
+
+    def test_critique_checks_a_claim(self):
+        values = ",".join(["70"] * 21)
+        code, out = self.run_cli(
+            [
+                "critique", "--height", "6-4", "--values", values,
+                "--claim", "ankle_assassin=hall_of_fame",
+            ]
+        )
+        self.assertEqual(code, 0)
+        self.assertIn("CLAIMS", out)
+        self.assertIn("does not hold", out.lower())
+
+    def test_critique_rejects_wrong_attribute_count(self):
+        code, out = self.run_cli(["critique", "--height", "6-4", "--values", "70,70"])
+        self.assertEqual(code, 2)
+
+    def test_critique_flags_an_illegal_value(self):
+        values = ["70"] * 21
+        values[3] = "95"
+        code, out = self.run_cli(
+            ["critique", "--height", "6-4", "--values", ",".join(values)]
+        )
+        self.assertEqual(code, 0)
+        self.assertIn("ABOVE THE CEILING", out.upper())
+
+
 if __name__ == "__main__":
     unittest.main()

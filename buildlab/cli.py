@@ -5,6 +5,7 @@ import argparse
 from buildlab import (
     animations as animations_mod,
     badges as badges_mod,
+    critique as critique_mod,
     goals as goals_mod,
     ladders,
     ovr,
@@ -236,6 +237,65 @@ def _solve(args):
     return 0
 
 
+def _critique(args):
+    values = [int(v) for v in args.values.split(",")]
+    if len(values) != 21:
+        print(f"error: expected 21 attribute values, got {len(values)}")
+        return 2
+    height = parse_height(args.height)
+    report = critique_mod.critique(values, height)
+
+    print(f"HEIGHT     {args.height}  ({height} in)")
+    print(f"OVERALL    {report['overall']}   archetype {report['archetype']}")
+    print(f"BADGES     {len(report['badges'])} unlocked")
+    print()
+
+    if report["illegal"]:
+        print("ABOVE THE CEILING — this build cannot be made:")
+        for entry in report["illegal"]:
+            print(
+                f"  {entry['attribute']:<20} {entry['value']} "
+                f"but the ceiling here is {entry['ceiling']}"
+            )
+        print()
+
+    total_wasted = sum(entry["wasted"] for entry in report["waste"])
+    print(f"WASTED     {total_wasted} points buying nothing")
+    for entry in report["waste"]:
+        nxt = entry["next_unlock_at"]
+        tail = f", next unlock at {nxt}" if nxt is not None else ", nothing further"
+        print(
+            f"  {entry['attribute']:<20} {entry['value']} "
+            f"({entry['wasted']} wasted{tail})"
+        )
+    print()
+
+    if report["unspecified"]:
+        print(f"AT THE FLOOR  {len(report['unspecified'])} attributes")
+        print(f"  {', '.join(report['unspecified'])}")
+        print()
+
+    if args.claim:
+        claims = []
+        for spec in args.claim:
+            name, sep, tier = spec.partition("=")
+            if not sep:
+                print(f"error: --claim wants name=tier, got {spec!r}")
+                return 2
+            claims.append((name.strip(), tier.strip()))
+        print("CLAIMS")
+        for checked in critique_mod.check_claims(values, height, claims):
+            if checked["holds"]:
+                print(f"  {checked['badge']} {checked['claimed']}  holds")
+            else:
+                actual = checked.get("actual") or "nothing"
+                print(
+                    f"  {checked['badge']} {checked['claimed']}  "
+                    f"does not hold — actually reaches {actual}"
+                )
+    return 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="buildlab")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -272,6 +332,12 @@ def main(argv=None):
     sv.add_argument("--animation", action="append", help="Family:Name, repeatable")
     sv.add_argument("--height", default=None, help="fix the height, e.g. 6-3")
     sv.set_defaults(func=_solve)
+
+    cr = sub.add_parser("critique", help="evaluate a build somebody proposed")
+    cr.add_argument("--height", required=True, help="feet-inches, e.g. 6-3")
+    cr.add_argument("--values", required=True, help="21 comma-separated ratings")
+    cr.add_argument("--claim", action="append", help="name=tier to check, repeatable")
+    cr.set_defaults(func=_critique)
 
     args = parser.parse_args(argv)
     return args.func(args)
