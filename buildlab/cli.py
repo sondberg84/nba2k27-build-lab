@@ -10,6 +10,7 @@ from buildlab import (
     ladders,
     ovr,
     reference,
+    refresh as refresh_mod,
     solver,
     tokens,
 )
@@ -296,6 +297,71 @@ def _critique(args):
     return 0
 
 
+def _refresh(args):
+    if not (args.check or args.preview or args.adopt):
+        print("error: pick a mode — --check, --preview or --adopt")
+        return 2
+    if args.adopt and not args.preview:
+        print(
+            "error: --adopt only runs together with --preview, so you see the "
+            "diff and the verdict before anything changes"
+        )
+        return 2
+
+    status = refresh_mod.check()
+    print(f"PINNED     {status['pinned'][:12]}")
+    print(f"UPSTREAM   {status['upstream'][:12]}")
+    if not status["behind"]:
+        print("UP TO DATE — nothing to do")
+        return 0
+    print("BEHIND     upstream has moved")
+    if args.check:
+        print()
+        print("  Run again with --preview to fetch and compare without adopting.")
+        return 0
+
+    print()
+    print("STAGING    downloading to data/staging, live data untouched")
+    staged = refresh_mod.stage(status["upstream"])
+    changed = [rel for rel, entry in staged.items() if entry["changed"]]
+    print(f"CHANGED    {len(changed)} of {len(staged)} files")
+    for rel in changed:
+        print(f"  {rel}")
+    print()
+
+    vectors = refresh_mod.staged_rows(staged, "overall/mixed_vectors.json")
+    outcome = refresh_mod.check_vectors(vectors)
+    print(
+        f"VECTORS    {outcome['matched']}/{outcome['total']} reproduce with the "
+        "current engine"
+    )
+    if not outcome["reproduces"]:
+        print()
+        print("VERDICT    real_change or upstream_broken — cannot tell them apart")
+        print(
+            "  The staged tables do not reproduce the staged vectors under the "
+            "current engine. Either the rules changed and the engine needs "
+            "rederiving, or the upstream capture is broken. Not adopting."
+        )
+        for failure in outcome["failures"]:
+            print(
+                f"    sample {failure['sample']}: expected "
+                f"{failure['expected']}, got {failure['got']}"
+            )
+        return 0
+
+    print("VERDICT    cosmetic — the engine still reproduces every vector")
+    if not args.adopt:
+        print()
+        print("  Run again with --preview --adopt to apply it.")
+        return 0
+
+    print()
+    print("ADOPT      not implemented yet; staging is left in place for inspection")
+    print(f"  {refresh_mod.STAGING}")
+    return 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="buildlab")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -338,6 +404,12 @@ def main(argv=None):
     cr.add_argument("--values", required=True, help="21 comma-separated ratings")
     cr.add_argument("--claim", action="append", help="name=tier to check, repeatable")
     cr.set_defaults(func=_critique)
+
+    rf = sub.add_parser("refresh", help="check for and preview new upstream data")
+    rf.add_argument("--check", action="store_true", help="compare pins only")
+    rf.add_argument("--preview", action="store_true", help="fetch and diff")
+    rf.add_argument("--adopt", action="store_true", help="apply, with --preview")
+    rf.set_defaults(func=_refresh)
 
     args = parser.parse_args(argv)
     return args.func(args)

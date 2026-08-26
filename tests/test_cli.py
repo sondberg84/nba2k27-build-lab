@@ -223,5 +223,23 @@ class TestCritiqueCommand(unittest.TestCase):
         self.assertIn("ABOVE THE CEILING", out.upper())
 
 
+class TestRefreshCommand(unittest.TestCase):
+    def run_cli(self, argv):
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            code = cli.main(argv)
+        return code, buffer.getvalue()
+
+    def test_refresh_requires_a_mode(self):
+        code, out = self.run_cli(["refresh"])
+        self.assertEqual(code, 2)
+        self.assertIn("--check", out)
+
+    def test_refresh_rejects_adopt_without_preview(self):
+        code, out = self.run_cli(["refresh", "--adopt"])
+        self.assertEqual(code, 2)
+        self.assertIn("--preview", out)
+
+
 if __name__ == "__main__":
     unittest.main()
