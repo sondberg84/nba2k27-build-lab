@@ -2,7 +2,19 @@
 
 import argparse
 
-from buildlab import badges as badges_mod, ovr, reference, tokens
+from buildlab import (
+    animations as animations_mod,
+    badges as badges_mod,
+    ladders,
+    ovr,
+    reference,
+    tokens,
+)
+
+
+def _ft(inches):
+    """Whole inches back to the feet-inches form the CLI accepts."""
+    return f"{inches // 12}-{inches % 12}"
 
 
 def parse_height(text):
@@ -74,6 +86,88 @@ def _badges(args):
     return 0
 
 
+def _animations(args):
+    values = [int(v) for v in args.values.split(",")]
+    if len(values) != 21:
+        print(f"error: expected 21 attribute values, got {len(values)}")
+        return 2
+    height = parse_height(args.height)
+    rows = animations_mod.available(values, height, family=args.family)
+    print(f"HEIGHT     {args.height}  ({height} in)")
+    print(f"AVAILABLE  {len(rows)} packages")
+    print()
+    by_family = {}
+    for row in rows:
+        by_family.setdefault(row["family"], []).append(row["name"])
+    for family in sorted(by_family):
+        print(f"  {family}:")
+        for name in sorted(by_family[family]):
+            print(f"    {name}")
+    return 0
+
+
+def _ladder(args):
+    height = parse_height(args.height)
+    try:
+        steps = ladders.ladder(args.attribute, height)
+    except KeyError as error:
+        print(f"error: {error}")
+        return 2
+    ceiling = ladders.max_ceiling(args.attribute, height)
+    print(f"LADDER  {args.attribute} at {args.height}  (ceiling {ceiling})")
+    print()
+    previous = None
+    for step in steps:
+        if previous is not None and step["rating"] - previous > 1:
+            gap = step["rating"] - previous - 1
+            print(f"        ({gap} point{'s' if gap > 1 else ''} buying nothing)")
+        unlocks = list(step["badges"]) + list(step["animations"])
+        head = unlocks[0]
+        if len(unlocks) > 4:
+            head = f"{unlocks[0]}  (+{len(unlocks) - 1} more)"
+            unlocks = unlocks[:1]
+        print(f"  {step['rating']:>3}  {head}")
+        for extra in unlocks[1:]:
+            print(f"       {extra}")
+        previous = step["rating"]
+    return 0
+
+
+def _reachability(args):
+    families = animations_mod.families()
+    if args.family is not None and args.family not in families:
+        print(f"error: no family named {args.family!r}")
+        return 2
+    rows = [
+        row
+        for row in animations_mod.packages()
+        if row["requirements"]
+        and (args.family is None or row["family"] == args.family)
+    ]
+    narrowed = []
+    for row in rows:
+        real = animations_mod.reachable_range(row["name"], row["family"])
+        if real["narrower_than_stated"]:
+            narrowed.append((row, real))
+    print(f"CHECKED    {len(rows)} packages with attribute requirements")
+    print(
+        f"NARROWED   {len(narrowed)} are blocked by ceilings inside their "
+        "stated height range"
+    )
+    print()
+    for row, real in sorted(
+        narrowed, key=lambda pair: pair[0]["family"] + pair[0]["name"]
+    ):
+        stated = f"{_ft(row['min_height'])} to {_ft(row['max_height'])}"
+        if real["min_height"] is None:
+            actual = "never reachable"
+        else:
+            actual = f"{_ft(real['min_height'])} to {_ft(real['max_height'])}"
+        print(f"  {row['family']}: {row['name']}")
+        print(f"    stated {stated}   actually {actual}   blocked by {real['blocked_by']}")
+    return 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="buildlab")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -85,6 +179,25 @@ def main(argv=None):
     bd.add_argument("--height", required=True, help="feet-inches, e.g. 6-3")
     bd.add_argument("--values", required=True, help="21 comma-separated ratings")
     bd.set_defaults(func=_badges)
+
+    an = sub.add_parser("animations", help="show animations a build can use")
+    an.add_argument("--height", required=True, help="feet-inches, e.g. 6-3")
+    an.add_argument("--values", required=True, help="21 comma-separated ratings")
+    an.add_argument("--family", default=None, help="restrict to one family")
+    an.set_defaults(func=_animations)
+
+    la = sub.add_parser("ladder", help="show what each point in an attribute buys")
+    la.add_argument("--height", required=True, help="feet-inches, e.g. 6-3")
+    la.add_argument("--attribute", required=True, help="builder attribute name")
+    la.set_defaults(func=_ladder)
+
+    rc = sub.add_parser(
+        "reachability",
+        help="animations blocked by ceilings inside their stated height range",
+    )
+    rc.add_argument("--family", default=None, help="restrict to one family")
+    rc.set_defaults(func=_reachability)
+
     args = parser.parse_args(argv)
     return args.func(args)
 

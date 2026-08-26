@@ -28,7 +28,7 @@ SpeedWithBall <= Agility + 15
 
 ### What that costs
 
-A build advertised as needing "94 Speed With Ball" actually requires four attributes:
+A build advertised as needing "94 Speed With Ball" requires four attributes **directly**:
 
 | Attribute | Forced minimum | Why |
 |---|---|---|
@@ -37,8 +37,21 @@ A build advertised as needing "94 Speed With Ball" actually requires four attrib
 | Ball Handle | 89 | `SWB <= BallControl + 5` |
 | Agility | 79 | `SWB <= Agility + 15` |
 
-Any build guide quoting only the Speed With Ball number is quoting roughly a quarter of
-the real price.
+**But the real total is larger, because the constraints chain.** Speed is itself capped
+relative to other attributes, and so on. Following the chain to a fixed point and discarding
+anything at or below the starting floor of 25, the true cost of 94 Speed With Ball is:
+
+```
+5'9"   11 attributes        6'4"   14 attributes
+6'2"   12 attributes        7'0"   20 attributes
+```
+
+The four direct links are the same at every height; the tail grows with the build. So a
+guide quoting only the Speed With Ball number is quoting **one twelfth** of the real price
+on a 6'2" guard, not one quarter.
+
+(Phase 1 recorded this as "four attributes". That was the direct links only and understated
+the cost — corrected here after the chain was implemented.)
 
 ## 2. Animation height ranges are not the real limit
 
@@ -239,3 +252,79 @@ which fixes it fails loudly and tells us to widen the trusted range.
 - The badge slot allocator formula is unresolved upstream. The `slots` array is read but
   nothing is computed from it.
 - Cap breaker data is valid only for the reference body, PG 6'3" 198 lb 78 in wingspan.
+
+---
+
+# Phase 2 findings — animations and ladders
+
+## 12. Animation availability is not monotonic in height
+
+Every animation sits in one of three height bands, because `min_height` only ever takes the
+values 5'9", 6'5" and 6'10", and `max_height` only 6'4", 6'9" and 7'4". There are therefore
+exactly two cliffs. For a maxed build, package counts:
+
+```
+5'9" - 6'4"    1184     flat at every single inch
+6'5" - 6'9"    1263     peak
+6'10" - 7'4"    623     roughly half
+```
+
+**375 packages drop out at the single inch between 6'4" and 6'9"**, Motion styles losing the
+most (71), then Dribble Pull-Up (50), Go-To Shot (26), Hop Jumper (26).
+
+Going from 6'3" to 6'10" does not trade some animations for others. It costs about half of
+everything the build can do. Most advice about bigs implies the opposite.
+
+## 13. One animation in five is blocked by ceilings, not by its height range
+
+**397 of 1,814 packages (21.9%)** are unreachable somewhere inside their own stated height
+range, because no legal body at that height has a high enough attribute ceiling.
+
+Kyrie Irving's dribble style is the clearest case: listed 5'9"-6'4", actually reachable only
+to **6'2"**, blocked by `speed_with_ball`. Every published table says 6'4".
+
+The largest narrowings:
+
+```
+Kevin Durant, Go-To Shot        stated 7'4"  real 6'6"   blocked by three_point
+Taj Gibson, Motion styles       stated 7'4"  real 6'9"   agility
+Franz Wagner, Breakdown Combo   stated 7'4"  real 6'9"   ball_handle
+Elite Contact Dunks Off One     stated 7'4"  real 6'9"   driving_dunk
+```
+
+And one package is unreachable at **every** height in its stated range: Paolo Banchero's
+Go-To Shot, needing 94 mid-range and 94 three-point on a 6'10"-7'4" body.
+
+**An animation's height range is a necessary condition, not a sufficient one.** Any tool
+that checks only the height gate will tell a player a build works when it cannot.
+
+## 14. The ladder shows how much is routinely wasted
+
+Ball handle at 6'4", showing only the gaps:
+
+```
+ 25  52 packages
+     14 points buying nothing
+ 40  22 packages
+     19 points buying nothing        <- the largest dead zone in the attribute
+ 60  strong_handle bronze
+      4 points buying nothing
+ 65  unpluckable bronze
+```
+
+**Nineteen consecutive points of ball handle, from 41 to 59, unlock nothing at all.** A build
+sitting at 55 has thrown away fifteen points it could have spent elsewhere.
+
+The same view for a centre's standing dunk at 7'0" shows the real breakpoints — 80 for Pro
+Bigman Contact Dunks, 90 for Elite Bigman Contact Dunks and Wembanyama's package, 93 for
+Aerial Wizard hall-of-fame, 99 for Rise Up hall-of-fame — with dead stretches between.
+
+## Caveats carried forward
+
+- The animation data is NBA2KLab's Community Day capture, now vendored under the same hash
+  manifest as the engine data. Re-import with `python tools/vendor_local.py` if it changes.
+- **Jumpshot bases and releases are absent entirely.** The file has no jumpshot entries.
+  Shooting coverage is Dribble Pull-Up, Go-To Shot, Hop Jumper, Post Fade, Post Hop Shot and
+  Spin Jumper only. This remains the single largest gap in the animation data.
+- Reachability is computed against the best legal body at each height. A specific build with
+  a heavier frame or shorter wingspan may fall short where the scan says the height works.
