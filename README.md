@@ -16,8 +16,9 @@ neither is mine:
 **[lightmatmul/nba2k27-builder-dataset](https://github.com/lightmatmul/nba2k27-builder-dataset)**
 — the game's own rules data, captured by calling NBA 2K HQ's native builder functions
 directly rather than estimating. Attribute weights, body multipliers, badge requirements,
-token tables, cap breakers, and the 256 golden vectors this engine is verified against. A
-copy is vendored in `data/engine/`, pinned to commit `957d0095`.
+token tables, cap breakers, and the 256 golden vectors this engine is verified against.
+**Not redistributed here** — `tools/vendor.py` fetches it into `data/engine/` from their
+repository at pinned commit `957d0095`, so you get it from them.
 
 **NBA2KLab** — the 1,814 animation requirement rows in `data/local/`, gathered by testing
 rather than extraction. These **are** included in this repository, because there is nowhere
